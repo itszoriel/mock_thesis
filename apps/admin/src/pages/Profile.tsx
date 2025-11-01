@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useAdminStore } from '../lib/store'
+import type { AdminState, User } from '../lib/store'
 import { authApi, mediaUrl, showToast } from '../lib/api'
 
 export default function Profile() {
-  const storeUser = useAdminStore((s) => s.user)
-  const updateUser = useAdminStore((s) => s.updateUser)
-  const [user, setUser] = useState<any>(storeUser)
+  const storeUser = useAdminStore((state: AdminState) => state.user)
+  const updateUser = useAdminStore((state: AdminState) => state.updateUser)
+  const [user, setUser] = useState<User | undefined>(storeUser)
   const [form, setForm] = useState<{ first_name: string; middle_name?: string; last_name: string; phone_number?: string }>(
     { first_name: storeUser?.first_name || '', middle_name: storeUser?.middle_name || '', last_name: storeUser?.last_name || '', phone_number: (storeUser as any)?.phone_number || '' }
   )
@@ -17,7 +18,7 @@ export default function Profile() {
     ;(async () => {
       try {
         const res = await authApi.getProfile()
-        const u = (res as any)?.data || res
+        const u = ((res as any)?.data || res) as User
         setUser(u)
         setForm({ first_name: u.first_name || '', middle_name: u.middle_name || '', last_name: u.last_name || '', phone_number: (u as any).phone_number || '' })
         updateUser(u)

@@ -8,7 +8,9 @@ export type User = {
   middle_name?: string
   last_name: string
   role: string
+  phone_number?: string
   admin_municipality_id?: number
+  municipality_id?: number
   profile_picture?: string
   email_verified: boolean
   admin_verified: boolean
@@ -18,7 +20,7 @@ export type User = {
   admin_municipality_slug?: string
 }
 
-type AdminState = {
+export type AdminState = {
   user?: User
   accessToken?: string
   refreshToken?: string
@@ -47,7 +49,7 @@ export const useAdminStore = create<AdminState>((set) => {
     accessToken: storedToken || undefined,
     refreshToken: storedRefreshToken || undefined,
     isAuthenticated: !!storedToken && !!initialUser,
-    setAuth: (user, accessToken, refreshToken) => {
+    setAuth: (user: User, accessToken: string, refreshToken: string) => {
       if (typeof window !== 'undefined') {
         localStorage.setItem('admin:access_token', accessToken)
         localStorage.setItem('admin:refresh_token', refreshToken)
@@ -55,14 +57,14 @@ export const useAdminStore = create<AdminState>((set) => {
       }
       set({ user, accessToken, refreshToken, isAuthenticated: true })
     },
-    setTokens: (accessToken, refreshToken) => {
+    setTokens: (accessToken: string, refreshToken?: string) => {
       if (typeof window !== 'undefined') {
         localStorage.setItem('admin:access_token', accessToken)
         if (refreshToken) {
           localStorage.setItem('admin:refresh_token', refreshToken)
         }
       }
-      set((state) => ({
+      set((state: AdminState) => ({
         accessToken,
         refreshToken: refreshToken ?? state.refreshToken,
         isAuthenticated: !!accessToken && !!state.user,
@@ -77,7 +79,7 @@ export const useAdminStore = create<AdminState>((set) => {
       }
       set({ user: undefined, accessToken: undefined, refreshToken: undefined, isAuthenticated: false })
     },
-    updateUser: (user) => {
+    updateUser: (user: User) => {
       if (typeof window !== 'undefined') {
         localStorage.setItem('admin:user', JSON.stringify(user))
       }

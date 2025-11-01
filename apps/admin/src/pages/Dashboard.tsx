@@ -3,11 +3,12 @@ import { adminApi, handleApiError, userApi, issueApi, marketplaceApi, announceme
 import UserVerificationList from '../components/UserVerificationList'
 import { useNavigate } from 'react-router-dom'
 import { useAdminStore } from '../lib/store'
+import type { AdminState } from '../lib/store'
 import { StatCard, Card, Button, Select } from '@munlink/ui'
 import { Hand, Users, AlertTriangle, ShoppingBag, Megaphone } from 'lucide-react'
 
 export default function Dashboard() {
-  const user = useAdminStore((s) => s.user)
+  const user = useAdminStore((state: AdminState) => state.user)
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

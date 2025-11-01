@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { handleApiError, userApi, mediaUrl, transferAdminApi, showToast, municipalitiesApi } from '../lib/api'
 import { useLocation } from 'react-router-dom'
 import { useAdminStore } from '../lib/store'
+import type { AdminState } from '../lib/store'
 import { DataTable, Modal, Button } from '@munlink/ui'
 import { X, Check, RotateCcw, Pause, ExternalLink, Hourglass } from 'lucide-react'
 import TransferRequestCard from '../components/transfers/TransferRequestCard'
@@ -9,9 +10,9 @@ import TransferRequestModal from '../components/transfers/TransferRequestModal'
 
 export default function Residents() {
   const location = useLocation()
-  const adminMunicipalityName = useAdminStore((s) => s.user?.admin_municipality_name || s.user?.municipality_name)
-  const adminMunicipalitySlug = useAdminStore((s) => s.user?.admin_municipality_slug || s.user?.municipality_slug)
-  const adminMunicipalityId = useAdminStore((s) => (s.user as any)?.admin_municipality_id || (s.user as any)?.municipality_id)
+  const adminMunicipalityName = useAdminStore((state: AdminState) => state.user?.admin_municipality_name || state.user?.municipality_name)
+  const adminMunicipalitySlug = useAdminStore((state: AdminState) => state.user?.admin_municipality_slug || state.user?.municipality_slug)
+  const adminMunicipalityId = useAdminStore((state: AdminState) => state.user?.admin_municipality_id ?? state.user?.municipality_id ?? null)
   const [activeTab, setActiveTab] = useState<'residents'|'transfers'>('residents')
   const [filter, setFilter] = useState<'all' | 'verified' | 'pending' | 'suspended'>('all')
   const [searchQuery, setSearchQuery] = useState('')

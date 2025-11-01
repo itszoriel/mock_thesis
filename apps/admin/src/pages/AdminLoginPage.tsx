@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authApi, handleApiError } from '../lib/api'
 import { useAdminStore } from '../lib/store'
+import type { AdminState } from '../lib/store'
 
 // Base URL handled by api client; keep for reference only
 
@@ -10,7 +11,7 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
-  const setAuth = useAdminStore((s) => s.setAuth)
+  const setAuth = useAdminStore((state: AdminState) => state.setAuth)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

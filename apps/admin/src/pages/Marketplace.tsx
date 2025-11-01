@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { handleApiError, marketplaceApi, mediaUrl, transactionsAdminApi, userApi } from '../lib/api'
 import { useAdminStore } from '../lib/store'
+import type { AdminState } from '../lib/store'
 import { ShoppingBag, Store, BadgeDollarSign, Handshake, Gift, Check, X } from 'lucide-react'
 
 export default function Marketplace() {
@@ -10,9 +11,9 @@ export default function Marketplace() {
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<any[]>([])
   const [stats, setStats] = useState<{ total_items: number; pending_items: number; approved_items: number; rejected_items: number } | null>(null)
-  const userRole = useAdminStore((s)=> s.user?.role)
-  const adminMunicipalityName = useAdminStore((s)=> s.user?.admin_municipality_name || s.user?.municipality_name)
-  const adminMunicipalityId = useAdminStore((s)=> s.user?.admin_municipality_id)
+  const userRole = useAdminStore((state: AdminState) => state.user?.role)
+  const adminMunicipalityName = useAdminStore((state: AdminState) => state.user?.admin_municipality_name || state.user?.municipality_name)
+  const adminMunicipalityId = useAdminStore((state: AdminState) => state.user?.admin_municipality_id)
   const [reviewItem, setReviewItem] = useState<any | null>(null)
   // Status moderation removed; show available items by default
 

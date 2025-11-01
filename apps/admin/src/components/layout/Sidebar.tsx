@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useAdminStore } from '../../lib/store'
+import type { AdminState } from '../../lib/store'
 import { LayoutDashboard, Users, Gift, FileText, AlertTriangle, ShoppingBag, Megaphone, BarChart3 } from 'lucide-react'
 
 interface SidebarProps {
@@ -35,7 +36,7 @@ function IconFor(code: string, className = 'w-5 h-5') {
 }
 
 export default function Sidebar({ collapsed, onToggle, className = '' }: SidebarProps) {
-  const user = useAdminStore((s) => s.user)
+  const user = useAdminStore((state: AdminState) => state.user)
   
   // Get municipality logo path
   const getMunicipalityLogo = () => {

@@ -2,6 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { User, Globe } from 'lucide-react'
 import { useAdminStore } from '../../lib/store'
+import type { AdminState } from '../../lib/store'
 
 interface TopHeaderProps {
   sidebarCollapsed: boolean
@@ -12,8 +13,8 @@ export default function TopHeader({ sidebarCollapsed, onOpenMobile }: TopHeaderP
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
-  const user = useAdminStore((s) => s.user)
-  const doLogout = useAdminStore((s) => s.logout)
+  const user = useAdminStore((state: AdminState) => state.user)
+  const doLogout = useAdminStore((state: AdminState) => state.logout)
   
   // Get current page name from path
   const getCurrentPageName = () => {

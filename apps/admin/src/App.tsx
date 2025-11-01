@@ -4,6 +4,7 @@ import AdminRegisterPage from './pages/AdminRegisterPage'
 import AdminLoginPage from './pages/AdminLoginPage'
 import ProtectedRoute from './components/ProtectedRoute'
 import { useAdminStore } from './lib/store'
+import type { AdminState } from './lib/store'
 import AdminLayout from './components/layout/AdminLayout'
 import Dashboard from './pages/Dashboard'
 import Residents from './pages/Residents'
@@ -19,7 +20,7 @@ import TransactionsPage from './pages/Transactions'
 import VerifyTicket from './pages/VerifyTicket'
 
 export default function App() {
-  const isAuthenticated = useAdminStore((s) => s.isAuthenticated)
+  const isAuthenticated = useAdminStore((state: AdminState) => state.isAuthenticated)
   const navigate = useNavigate()
 
   // Prevent accessing private routes after logout via back button/history cache

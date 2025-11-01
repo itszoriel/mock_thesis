@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { benefitsApi, benefitsAdminApi, handleApiError, showToast } from '../lib/api'
 import { useAdminStore } from '../lib/store'
+import type { AdminState } from '../lib/store'
 import { Modal, Button } from '@munlink/ui'
 import { ClipboardList, Users, Hourglass, CheckCircle } from 'lucide-react'
 
@@ -17,7 +18,7 @@ export default function Benefits() {
   const [viewApplicants, setViewApplicants] = useState<{ program: any; applications: any[] } | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState<number | null>(null)
-  const adminMunicipalityId = useAdminStore((s) => (s.user as any)?.admin_municipality_id || (s.user as any)?.municipality_id)
+  const adminMunicipalityId = useAdminStore((state: AdminState) => state.user?.admin_municipality_id ?? state.user?.municipality_id ?? null)
 
   useEffect(() => {
     let mounted = true
@@ -31,7 +32,7 @@ export default function Benefits() {
           const resAdmin = await benefitsAdminApi.listPrograms()
           list = ((resAdmin as any)?.programs as any[]) || []
         } catch {
-          const res = await benefitsApi.getPrograms(adminMunicipalityId)
+          const res = await benefitsApi.getPrograms(adminMunicipalityId ?? undefined)
           list = ((res as any)?.programs as any[]) || []
         }
         const mapped = list.map((p) => ({
@@ -104,7 +105,7 @@ export default function Benefits() {
   const submitCreate = async (data: any) => {
     try {
       setActionLoading(-1)
-      const payload = { ...data, municipality_id: adminMunicipalityId }
+      const payload = { ...data, municipality_id: adminMunicipalityId ?? undefined }
       const res = await benefitsAdminApi.createProgram(payload)
       const created = (res as any)?.program
       if (created) {
