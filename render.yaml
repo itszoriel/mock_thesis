@@ -23,7 +23,7 @@ services:
       - key: DATABASE_URL
         value: postgresql+psycopg://munlink_db_user:SUEkbGrVZdl7Oeas6Rdra8RaktbF7vbA@dpg-d430duumcj7s73ahp5g0-a/munlink_db?sslmode=require
       - key: WEB_URL
-        value: https://munlinkzambales-web.onrender.com
+        value: https://munlink-web.onrender.com
       - key: ADMIN_URL
         value: https://munlink-admin.onrender.com
       - key: JWT_COOKIE_SECURE
@@ -31,7 +31,7 @@ services:
       - key: JWT_COOKIE_SAMESITE
         value: None
       - key: QR_BASE_URL
-        value: https://munlinkzambales-web.onrender.com/verify
+        value: https://munlink-web.onrender.com/verify
       - key: SMTP_SERVER
         value: smtp.gmail.com
       - key: SMTP_PORT

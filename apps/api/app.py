@@ -45,14 +45,20 @@ def create_app(config_class=Config):
     jwt.init_app(app)
     
     # CORS configuration
+    cors_origins = {
+        app.config.get('WEB_URL'),
+        app.config.get('ADMIN_URL'),
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://munlink-web.onrender.com",
+        "https://munlink-admin.onrender.com",
+        "https://munlinkzambales-web.onrender.com",
+    }
+    cors_origins = [origin for origin in cors_origins if origin]
+
     CORS(app, resources={
         r"/api/*": {
-            "origins": [
-                app.config['WEB_URL'],
-                app.config['ADMIN_URL'],
-                "http://localhost:3000",
-                "http://localhost:3001"
-            ],
+            "origins": cors_origins,
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization", "X-CSRF-TOKEN"],
             "supports_credentials": True
