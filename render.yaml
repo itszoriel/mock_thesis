@@ -65,6 +65,16 @@ services:
       npm ci
       VITE_API_URL=https://munlink-api.onrender.com npm run build
     staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /.well-known/*
+        destination: /.well-known/:splat
+      - type: rewrite
+        source: /assets/*
+        destination: /assets/:splat
+      - type: rewrite
+        source: /*
+        destination: /index.html
 
   # Admin Panel
   - type: web
@@ -75,3 +85,13 @@ services:
       npm ci
       VITE_API_URL=https://munlink-api.onrender.com npm run build
     staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /.well-known/*
+        destination: /.well-known/:splat
+      - type: rewrite
+        source: /assets/*
+        destination: /assets/:splat
+      - type: rewrite
+        source: /*
+        destination: /index.html
