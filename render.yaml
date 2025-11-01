@@ -61,19 +61,21 @@ services:
     postDeployCommand: python -m flask db upgrade
 
   # Frontend (Web)
-  - type: static
+  - type: web
     name: munlink-web
+    env: static
+    rootDir: apps/web
     buildCommand: |
-      cd apps/web
       npm ci
       VITE_API_URL=https://munlink-api.onrender.com npm run build
-    staticPublishPath: apps/web/dist
+    staticPublishPath: dist
 
   # Admin Panel
-  - type: static
+  - type: web
     name: munlink-admin
+    env: static
+    rootDir: apps/admin
     buildCommand: |
-      cd apps/admin
       npm ci
       VITE_API_URL=https://munlink-api.onrender.com npm run build
-    staticPublishPath: apps/admin/dist
+    staticPublishPath: dist
