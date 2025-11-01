@@ -24,6 +24,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
       '~root': path.resolve(__dirname, '../../..'),
       '@munlink/ui': path.resolve(__dirname, '../../packages/ui/src'),
+      '@munlink/api-client': path.resolve(__dirname, '../../packages/api-client/src'),
     },
   },
 })

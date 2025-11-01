@@ -17,6 +17,10 @@ type Profile = {
   barangay_name?: string
 }
 
+type MunicipalityListResponse = {
+  municipalities?: Array<{ id: number; name: string }>
+}
+
 export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -37,11 +41,12 @@ export default function ProfilePage() {
       setLoading(true)
       setError(null)
       try {
-        const [profileRes, muniRes] = await Promise.all([
+        const [profileRes, municipalityResponse] = await Promise.all([
           authApi.getProfile(),
-          municipalityApi.getAll().then(r => r.data)
+          municipalityApi.getAll(),
         ])
         const data = (profileRes as any).data || profileRes
+        const municipalityData = ((municipalityResponse as any)?.data || municipalityResponse || {}) as MunicipalityListResponse
         if (!cancelled) {
           setForm({
             first_name: data.first_name || '',
@@ -56,7 +61,7 @@ export default function ProfilePage() {
             barangay_id: data.barangay_id,
             barangay_name: data.barangay_name,
           })
-          setMunicipalities(muniRes.municipalities || [])
+          setMunicipalities(municipalityData.municipalities || [])
           if (data.municipality_id) {
             try {
               const resB = await municipalityApi.getBarangays(data.municipality_id)
