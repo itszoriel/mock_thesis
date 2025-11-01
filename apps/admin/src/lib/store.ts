@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { setSessionAccessToken, clearAccessToken } from '@munlink/api-client'
 
 export type User = {
   id: number
@@ -44,6 +45,12 @@ export const useAdminStore = create<AdminState>((set) => {
     initialUser = undefined
   }
 
+  if (storedToken) {
+    try {
+      setSessionAccessToken(storedToken)
+    } catch {}
+  }
+
   return {
     user: initialUser,
     accessToken: storedToken || undefined,
@@ -55,6 +62,9 @@ export const useAdminStore = create<AdminState>((set) => {
         localStorage.setItem('admin:refresh_token', refreshToken)
         localStorage.setItem('admin:user', JSON.stringify(user))
       }
+      try {
+        setSessionAccessToken(accessToken)
+      } catch {}
       set({ user, accessToken, refreshToken, isAuthenticated: true })
     },
     setTokens: (accessToken: string, refreshToken?: string) => {
@@ -64,6 +74,9 @@ export const useAdminStore = create<AdminState>((set) => {
           localStorage.setItem('admin:refresh_token', refreshToken)
         }
       }
+      try {
+        setSessionAccessToken(accessToken)
+      } catch {}
       set((state: AdminState) => ({
         accessToken,
         refreshToken: refreshToken ?? state.refreshToken,
@@ -77,6 +90,10 @@ export const useAdminStore = create<AdminState>((set) => {
         localStorage.removeItem('admin:user')
         try { sessionStorage.clear() } catch {}
       }
+      try {
+        setSessionAccessToken(null)
+        clearAccessToken()
+      } catch {}
       set({ user: undefined, accessToken: undefined, refreshToken: undefined, isAuthenticated: false })
     },
     updateUser: (user: User) => {

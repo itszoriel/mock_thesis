@@ -1,5 +1,6 @@
 import { Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
+import { bootstrapAuth, getAccessToken } from '@munlink/api-client'
 import AdminRegisterPage from './pages/AdminRegisterPage'
 import AdminLoginPage from './pages/AdminLoginPage'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -18,10 +19,41 @@ import Announcements from './pages/Announcements'
 import Issues from './pages/Issues'
 import TransactionsPage from './pages/Transactions'
 import VerifyTicket from './pages/VerifyTicket'
+import { authApi } from './lib/api'
 
 export default function App() {
   const isAuthenticated = useAdminStore((state: AdminState) => state.isAuthenticated)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    let cancelled = false
+    const rehydrate = async () => {
+      const { accessToken } = useAdminStore.getState()
+      if (accessToken) return
+      const hasSession = await bootstrapAuth()
+      if (!hasSession || cancelled) return
+      const token = getAccessToken()
+      if (!token || cancelled) return
+      try {
+        const profile = await authApi.getProfile()
+        if (cancelled) return
+        const userData = (profile as any)?.user || profile
+        if (userData) {
+          const { setAuth } = useAdminStore.getState()
+          setAuth(userData, token, '')
+        }
+      } catch {
+        if (!cancelled) {
+          const { logout } = useAdminStore.getState()
+          logout()
+        }
+      }
+    }
+    void rehydrate()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   // Prevent accessing private routes after logout via back button/history cache
   useEffect(() => {
