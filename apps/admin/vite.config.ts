@@ -21,6 +21,7 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@munlink/ui': path.resolve(__dirname, '../../packages/ui/src'),
+      '@munlink/api-client': path.resolve(__dirname, '../../packages/api-client/src'),
     },
   },
 })

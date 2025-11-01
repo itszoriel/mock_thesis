@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { adminApi, handleApiError, marketplaceApi, mediaUrl, showToast, transactionsAdminApi, userApi } from '../lib/api'
+import { handleApiError, marketplaceApi, mediaUrl, transactionsAdminApi, userApi } from '../lib/api'
 import { useAdminStore } from '../lib/store'
 import { ShoppingBag, Store, BadgeDollarSign, Handshake, Gift, Check, X } from 'lucide-react'
 
@@ -14,7 +14,6 @@ export default function Marketplace() {
   const adminMunicipalityName = useAdminStore((s)=> s.user?.admin_municipality_name || s.user?.municipality_name)
   const adminMunicipalityId = useAdminStore((s)=> s.user?.admin_municipality_id)
   const [reviewItem, setReviewItem] = useState<any | null>(null)
-  const [decisionLoading, setDecisionLoading] = useState<boolean>(false)
   // Status moderation removed; show available items by default
 
   useEffect(() => {
@@ -78,14 +77,6 @@ export default function Marketplace() {
   }, [adminMunicipalityId])
 
   const filtered = useMemo(() => rows.filter((i) => filter === 'all' || i.type === filter), [rows, filter])
-
-  const refreshStats = async () => {
-    try {
-      const data = await marketplaceApi.getMarketplaceStats()
-      const payload = (data as any)?.data || data
-      setStats(payload)
-    } catch {}
-  }
 
   const [txRows, setTxRows] = useState<any[]>([])
   const [txLoading, setTxLoading] = useState(false)

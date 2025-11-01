@@ -10,7 +10,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@munlink/ui": ["../../packages/ui/src"]
+      "@munlink/ui": ["../../packages/ui/src"],
+      "@munlink/api-client": ["../../packages/api-client/src"]
     },
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,

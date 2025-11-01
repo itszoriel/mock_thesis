@@ -68,11 +68,6 @@ export default function AdminDashboardPage() {
     loadDashboardStats()
   }
 
-  const handleItemProcessed = (_itemId: number) => {
-    // Refresh stats when marketplace item is processed
-    loadDashboardStats()
-  }
-
   const handleAnnouncementUpdated = (_announcementId: number) => {
     // Refresh stats when announcement is updated
     loadDashboardStats()
