@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { X } from 'lucide-react'
 import GatedAction from '@/components/GatedAction'
-import { marketplaceApi, mediaUrl, showToast } from '@/lib/api'
+import { marketplaceApi, mediaUrl, showToast, handleApiError } from '@/lib/api'
 import { useAppStore } from '@/lib/store'
 
 type Item = {
@@ -60,9 +60,14 @@ export default function MarketplacePage() {
           } else {
             if (!cancelled) setMyPending({})
           }
-        } catch {}
-      } catch {
-        if (!cancelled) setItems([])
+        } catch (err: any) {
+          if (!cancelled) showToast(handleApiError(err, 'Failed to load marketplace activity'), 'error')
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setItems([])
+          showToast(handleApiError(err, 'Failed to load marketplace items'), 'error')
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -192,8 +197,7 @@ export default function MarketplacePage() {
                           showToast('Request submitted. Awaiting seller/donor response.', 'success')
                           setMyPending((prev) => ({ ...prev, [item.id]: 'pending' }))
                         } catch (e: any) {
-                          const msg = e?.response?.data?.error || 'Failed to create transaction request'
-                          showToast(msg, 'error')
+                          showToast(handleApiError(e, 'Failed to create transaction request'), 'error')
                         } finally {
                           setCreatingTxId(null)
                         }
@@ -329,7 +333,7 @@ export default function MarketplacePage() {
                     setFiles([])
                     setForm({ title: '', description: '', category: '', condition: 'good', transaction_type: 'sell', price: '' })
                   } catch (e: any) {
-                    const msg = e?.response?.data?.error || 'Failed to create item'
+                    const msg = handleApiError(e, 'Failed to create item')
                     setError(msg)
                     showToast(msg, 'error')
                   } finally {

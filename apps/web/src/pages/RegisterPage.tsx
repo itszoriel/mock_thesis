@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { authApi, municipalityApi } from '@/lib/api'
+import { authApi, municipalityApi, handleApiError } from '@/lib/api'
 import type { Municipality } from '@/lib/store'
 
 export default function RegisterPage() {
@@ -95,8 +95,7 @@ export default function RegisterPage() {
       })
       setSuccess(res.data.message || 'Registration successful. Please check your Gmail to verify your email.')
     } catch (err: any) {
-      const msg = err?.response?.data?.error || 'Registration failed'
-      setError(msg)
+      setError(handleApiError(err, 'Registration failed'))
     } finally {
       setSubmitting(false)
     }

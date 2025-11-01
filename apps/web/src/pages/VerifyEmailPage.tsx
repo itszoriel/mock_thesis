@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import api, { authApi, getAccessToken } from '@/lib/api'
+import { useLocation, Link } from 'react-router-dom'
+import api, { authApi, getAccessToken, handleApiError } from '@/lib/api'
 import { useAppStore } from '@/lib/store'
 
 export default function VerifyEmailPage() {
@@ -37,9 +37,8 @@ export default function VerifyEmailPage() {
           }
         } catch {}
       } catch (err: any) {
-        const msg = err?.response?.data?.error || 'Email verification failed'
         setStatus('error')
-        setMessage(msg)
+        setMessage(handleApiError(err, 'Email verification failed'))
       }
     }
 
@@ -107,8 +106,11 @@ export default function VerifyEmailPage() {
               </div>
             )}
             {status === 'success' && (
-              <div className="mt-4 text-sm text-gray-600">
+              <div className="mt-4 text-sm text-gray-600 space-y-2">
                 <p>Your account is now email-verified. Please upload your government ID for admin review to unlock all features.</p>
+                <div>
+                  <Link to="/login" className="text-primary-600 hover:underline">Return to login</Link>
+                </div>
               </div>
             )}
           </>

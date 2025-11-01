@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { X } from 'lucide-react'
-import { authApi, mediaUrl, transferApi, showToast, municipalityApi } from '@/lib/api'
+import { authApi, mediaUrl, transferApi, showToast, municipalityApi, handleApiError } from '@/lib/api'
 import { ProfileCard, Form, FormField, Input, Button } from '@munlink/ui'
 
 type Profile = {
@@ -70,7 +70,7 @@ export default function ProfilePage() {
           }
         }
       } catch (e: any) {
-        if (!cancelled) setError('Failed to load profile')
+        if (!cancelled) setError(handleApiError(e, 'Failed to load profile'))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -103,8 +103,9 @@ export default function ProfilePage() {
       setOk('Profile updated')
       showToast('Profile updated successfully', 'success')
     } catch (e: any) {
-      setError('Failed to update profile')
-      showToast('Failed to update profile', 'error')
+      const msg = handleApiError(e, 'Failed to update profile')
+      setError(msg)
+      showToast(msg, 'error')
     } finally {
       setSaving(false)
     }
@@ -126,8 +127,9 @@ export default function ProfilePage() {
       setTransferForm({ to_municipality_id: '', notes: '' })
       showToast('Transfer request submitted successfully', 'success')
     } catch (e: any) {
-      setTransferError(e?.response?.data?.error || 'Failed to submit transfer request')
-      showToast(e?.response?.data?.error || 'Failed to submit transfer request', 'error')
+      const msg = handleApiError(e, 'Failed to submit transfer request')
+      setTransferError(msg)
+      showToast(msg, 'error')
     } finally {
       setTransferring(false)
     }

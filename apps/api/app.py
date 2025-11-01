@@ -123,6 +123,11 @@ def create_app(config_class=Config):
             allowed_prefixes = (
                 'marketplace/',
                 'announcements/',
+                'profiles/',
+                'verification/',
+                'document_requests/',
+                'benefits/',
+                'issues/',
             )
             normalized = filename.replace('\\', '/').lstrip('/')
             if not any(normalized.startswith(p) for p in allowed_prefixes):

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { marketplaceApi, documentsApi, benefitsApi } from '@/lib/api'
+import { marketplaceApi, documentsApi, benefitsApi, handleApiError, showToast } from '@/lib/api'
 import Modal from '@/components/ui/Modal'
 import { StatusBadge } from '@munlink/ui'
 import ClaimTicketModal from '@/components/ClaimTicketModal'
@@ -23,6 +23,7 @@ export default function DashboardPage() {
   const [selectedApp, setSelectedApp] = useState<MyBenefitApp | null>(null)
   const [claimOpen, setClaimOpen] = useState(false)
   const [claimFor, setClaimFor] = useState<number | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const user = useAppStore((s) => s.user)
   const isAuthBootstrapped = useAppStore((s) => s.isAuthBootstrapped)
   const isAuthenticated = useAppStore((s) => s.isAuthenticated)
@@ -31,6 +32,7 @@ export default function DashboardPage() {
     let cancelled = false
     const load = async () => {
       setLoading(true)
+      if (!cancelled) setError(null)
       try {
         if (!isAuthBootstrapped || !isAuthenticated) {
           if (!cancelled) { setItems([]); setTxs([]); setReqs([]); setApps([]) }
@@ -50,9 +52,12 @@ export default function DashboardPage() {
           setReqs((myReqRes.data?.requests || []).slice(0, 5))
           setApps(((myAppsRes.data?.applications || []) as any[]))
         }
-      } catch {
+      } catch (err: any) {
         if (!cancelled) {
           setItems([]); setTxs([]); setReqs([]); setApps([])
+          const msg = handleApiError(err, 'We could not load your dashboard data yet.')
+          setError(msg)
+          showToast(msg, 'error')
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -107,6 +112,12 @@ export default function DashboardPage() {
         <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-blue-200/40 blur-3xl" />
         <div className="pointer-events-none absolute -left-10 -bottom-10 h-40 w-40 rounded-full bg-emerald-200/40 blur-3xl" />
       </div>
+
+      {error && (
+        <div className="mt-6 rounded-md border border-orange-200 bg-orange-50 text-orange-800 px-4 py-3 text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Stats row */}
       <div className="grid grid-cols-1 xs:grid-cols-3 gap-4 mt-6">

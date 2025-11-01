@@ -113,6 +113,22 @@ export const transferApi = {
   updateAdmin: (id: number, status: 'approved'|'rejected'|'accepted') => api.put(`/api/admin/transfers/${id}/status`, { status }),
 }
 
+export const handleApiError = (error: any, fallback = 'Something went wrong'): string => {
+  const data = error?.response?.data
+  if (data) {
+    if (typeof data === 'string') return data
+    if (data.error) {
+      if (data.details && typeof data.details === 'string' && data.details.trim()) {
+        return `${data.error}: ${data.details}`
+      }
+      return data.error
+    }
+    if (data.message) return data.message
+  }
+  if (error?.message) return error.message
+  return fallback
+}
+
 // Toast helper for consistent notifications
 export const showToast = (message: string, _type: 'success' | 'error' | 'info' = 'info') => {
   // Use browser alert for now - in a real app you'd use a toast library

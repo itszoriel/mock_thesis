@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { authApi } from '@/lib/api'
+import { authApi, handleApiError } from '@/lib/api'
 import { useAppStore } from '@/lib/store'
 
 export default function LoginPage() {
@@ -29,8 +29,7 @@ export default function LoginPage() {
         navigate('/dashboard')
       }
     } catch (err: any) {
-      const msg = err?.response?.data?.error || 'Login failed'
-      setError(msg)
+      setError(handleApiError(err, 'Login failed'))
     } finally {
       setSubmitting(false)
     }

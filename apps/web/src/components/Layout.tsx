@@ -25,9 +25,12 @@ export default function Layout() {
 
   // Re-validate auth on history navigation to prevent back access after logout
   useEffect(() => {
+    const protectedPrefixes = ['/dashboard', '/profile', '/my-marketplace', '/upload-id']
     const recheckAuth = () => {
       const { isAuthenticated: auth, role: currentRole } = useAppStore.getState()
-      if (!auth || currentRole === 'public') {
+      const path = typeof window !== 'undefined' ? window.location.pathname || '' : ''
+      const needsAuth = protectedPrefixes.some((prefix) => path.startsWith(prefix))
+      if (needsAuth && (!auth || currentRole === 'public')) {
         navigate('/login', { replace: true })
       }
     }
