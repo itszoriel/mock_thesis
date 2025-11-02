@@ -20,6 +20,7 @@ export const authApi = {
   logout: () => api.post('/api/auth/logout'),
   getProfile: () => api.get('/api/auth/profile'),
   updateProfile: (data: any) => api.put('/api/auth/profile', data),
+  resubmitVerification: () => api.post('/api/auth/profile/resubmit'),
   resendVerification: () => api.post('/api/auth/resend-verification'),
   resendVerificationPublic: (email: string) => api.post('/api/auth/resend-verification-public', { email }),
   uploadVerificationDocs: (files: { valid_id_front?: File, valid_id_back?: File, selfie_with_id?: File, municipality_slug?: string }) => {

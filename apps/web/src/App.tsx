@@ -28,6 +28,7 @@ import MarketplaceItemPage from './pages/MarketplaceItemPage'
 import AnnouncementDetailPage from './pages/AnnouncementDetailPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import ResolveReviewPage from './pages/ResolveReviewPage'
 
 function App() {
   const setAuth = useAppStore((s) => s.setAuth)
@@ -82,6 +83,7 @@ function App() {
           <Route path="dashboard" element={<ProtectedRoute allow={["resident"]}><DashboardPage /></ProtectedRoute>} />
           <Route path="profile" element={<ProtectedRoute allow={["resident"]}><ProfilePage /></ProtectedRoute>} />
           <Route path="my-marketplace" element={<ProtectedRoute allow={["resident"]}><MyMarketplacePage /></ProtectedRoute>} />
+          <Route path="resolve-review" element={<ProtectedRoute allow={["resident"]}><ResolveReviewPage /></ProtectedRoute>} />
           <Route path="marketplace" element={<MarketplacePage />} />
           <Route path="marketplace/:id" element={<MarketplaceItemPage />} />
           <Route path="about" element={<About />} />

@@ -895,6 +895,42 @@ def delete_profile_photo():
         return jsonify({'error': 'Failed to remove profile photo', 'details': str(e)}), 500
 
 
+@auth_bp.route('/profile/resubmit', methods=['POST'])
+@jwt_required()
+def resubmit_profile_for_review():
+    """Reset resident verification status back to pending after making updates."""
+    try:
+        user_id = get_jwt_identity()
+        try:
+            uid = int(user_id) if isinstance(user_id, str) else user_id
+        except Exception:
+            uid = user_id
+
+        user = User.query.get(uid)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        if user.role != 'resident':
+            return jsonify({'error': 'Only resident accounts can be resubmitted for review'}), 403
+
+        status = (getattr(user, 'verification_status', '') or '').lower()
+        if status == 'verified':
+            return jsonify({'message': 'Account already verified'}), 200
+
+        user.verification_status = 'pending'
+        user.admin_verified = False
+        user.admin_verified_at = None
+        user.verification_notes = None
+        user.is_active = True
+        user.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+        return jsonify({'message': 'Profile resubmitted for review', 'verification_status': user.verification_status}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to resubmit profile', 'details': str(e)}), 500
+
+
 @auth_bp.route('/verification-docs', methods=['POST'])
 @jwt_required()
 def upload_verification_docs():

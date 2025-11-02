@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { authApi, mediaUrl, transferApi, showToast, municipalityApi, handleApiError } from '@/lib/api'
 import { ProfileCard, Form, FormField, Input, Button } from '@munlink/ui'
@@ -31,6 +32,8 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null)
   const [ok, setOk] = useState<string | null>(null)
   const [form, setForm] = useState<Profile>({})
+  const [verificationStatus, setVerificationStatus] = useState<string>('')
+  const [verificationNotes, setVerificationNotes] = useState<string>('')
   const [transferring, setTransferring] = useState(false)
   const [transferError, setTransferError] = useState<string | null>(null)
   const [transferOk, setTransferOk] = useState<string | null>(null)
@@ -69,6 +72,8 @@ export default function ProfilePage() {
             selfie_with_id: data.selfie_with_id,
             proof_of_residency: data.proof_of_residency,
           })
+          setVerificationStatus((data.verification_status || '').toLowerCase())
+          setVerificationNotes(data.verification_notes || '')
           setMunicipalities(municipalityData.municipalities || [])
           if (data.municipality_id) {
             try {
@@ -146,6 +151,20 @@ export default function ProfilePage() {
   return (
     <div className="container-responsive py-12">
       <div className="max-w-3xl mx-auto space-y-6">
+        {verificationStatus === 'needs_revision' && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 flex flex-col gap-2">
+            <div className="font-semibold">Action required before admin approval</div>
+            <div>
+              Please address the feedback from your municipal administrator and resubmit your details from the{' '}
+              <Link to="/resolve-review" className="underline font-medium">Resolve Review</Link> page.
+            </div>
+            {verificationNotes && (
+              <div className="text-xs bg-white/60 border border-amber-200 rounded-md px-3 py-2">
+                <span className="font-medium">Feedback:</span> {verificationNotes}
+              </div>
+            )}
+          </div>
+        )}
         <ProfileCard
           role="resident"
           name={`${form.first_name || ''} ${form.last_name || ''}`.trim() || (form.username || 'My Profile')}

@@ -20,6 +20,7 @@ export default function Layout() {
   const role = useAppStore((s) => s.role)
   const user = useAppStore((s) => s.user)
   const logout = useAppStore((s) => s.logout)
+  const verificationStatus = useAppStore((s) => s.verificationStatus)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -106,6 +107,9 @@ export default function Layout() {
                   <div className="absolute right-0 mt-3 w-56 bg-white/90 backdrop-blur-xl rounded-xl shadow-2xl border border-white/50 p-2 z-50">
                     <button onClick={() => { closeAccount(); navigate('/dashboard') }} className="block w-full text-left px-3 py-2 rounded hover:bg-ocean-50">Dashboard</button>
                     <button onClick={() => { closeAccount(); navigate('/my-marketplace') }} className="block w-full text-left px-3 py-2 rounded hover:bg-ocean-50">My Marketplace</button>
+                    {verificationStatus === 'needs_revision' && (
+                      <button onClick={() => { closeAccount(); navigate('/resolve-review') }} className="block w-full text-left px-3 py-2 rounded text-amber-800 bg-amber-50 hover:bg-amber-100">Resolve Review</button>
+                    )}
                     <button onClick={() => { closeAccount(); navigate('/profile') }} className="block w-full text-left px-3 py-2 rounded hover:bg-ocean-50">Profile</button>
                     <button onClick={() => { closeAccount(); logout(); navigate('/login', { replace: true }) }} className="block w-full text-left px-3 py-2 rounded hover:bg-ocean-50">Logout</button>
                   </div>
@@ -148,6 +152,9 @@ export default function Layout() {
               <div className="grid gap-2">
                 <button onClick={() => { setMobileOpen(false); navigate('/dashboard'); }} className="btn-ghost rounded">Dashboard</button>
                 <button onClick={() => { setMobileOpen(false); navigate('/my-marketplace'); }} className="btn-ghost rounded">My Marketplace</button>
+                {verificationStatus === 'needs_revision' && (
+                  <button onClick={() => { setMobileOpen(false); navigate('/resolve-review'); }} className="rounded px-4 py-2 bg-amber-100 text-amber-800 hover:bg-amber-200">Resolve Review</button>
+                )}
                 <button onClick={() => { setMobileOpen(false); navigate('/profile'); }} className="btn-ghost rounded">Profile</button>
                 <button onClick={() => { setMobileOpen(false); logout(); navigate('/login', { replace: true }) }} className="btn-primary rounded">Logout</button>
               </div>

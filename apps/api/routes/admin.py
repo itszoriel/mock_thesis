@@ -163,7 +163,7 @@ def get_pending_users():
         # If admin has no municipality scope, treat as province-level admin and show all
         base_filters = [
             User.role == 'resident',
-            User.admin_verified == False,
+            User.verification_status.in_(['pending', 'needs_revision']),
             User.is_active == True,
         ]
         filters = base_filters.copy()
@@ -215,6 +215,9 @@ def verify_user(user_id):
         # Approve the user
         user.admin_verified = True
         user.admin_verified_at = datetime.utcnow()
+        user.verification_status = 'verified'
+        user.verification_notes = None
+        user.is_active = True
         user.updated_at = datetime.utcnow()
         
         db.session.commit()
@@ -259,23 +262,18 @@ def reject_user(user_id):
         
         # Reject the user (deactivate and reset verification flags)
         old_values = {
-            'email_verified': user.email_verified,
             'admin_verified': user.admin_verified,
+            'verification_status': getattr(user, 'verification_status', None),
+            'verification_notes': getattr(user, 'verification_notes', None),
             'is_active': user.is_active,
         }
 
-        user.email_verified = False
-        user.email_verified_at = None
         user.admin_verified = False
         user.admin_verified_at = None
-        user.is_active = False
+        user.verification_status = 'needs_revision'
+        user.verification_notes = reason
+        user.is_active = True
         user.updated_at = datetime.utcnow()
-
-        # Clear stored verification documents to force resubmission on re-registration
-        user.valid_id_front = None
-        user.valid_id_back = None
-        user.selfie_with_id = None
-        user.proof_of_residency = None
 
         # Audit trail
         actor_identity = get_jwt_identity()
@@ -288,8 +286,9 @@ def reject_user(user_id):
             actor_role='admin',
             old_values=old_values,
             new_values={
-                'email_verified': user.email_verified,
                 'admin_verified': user.admin_verified,
+                'verification_status': user.verification_status,
+                'verification_notes': user.verification_notes,
                 'is_active': user.is_active,
             },
             notes=reason,

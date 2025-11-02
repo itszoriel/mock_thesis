@@ -95,8 +95,18 @@ function getCookie(name: string): string | undefined {
   }
 }
 
+function hasRefreshCookie(): boolean {
+  const names = ['refresh_token_cookie', (import.meta as any).env?.VITE_REFRESH_COOKIE_NAME]
+  for (const name of names) {
+    if (!name) continue
+    if (getCookie(name)) return true
+  }
+  return false
+}
+
 async function doRefresh(): Promise<string | null> {
   try {
+    if (!hasRefreshCookie()) return null
     const csrf = getCookie('csrf_refresh_token')
     const resp = await axios.post(
       `${API_BASE_URL}/api/auth/refresh`,

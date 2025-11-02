@@ -26,23 +26,37 @@ export default function GatedAction({
   const isAuthenticated = useAppStore((s) => s.isAuthenticated)
   const emailVerified = useAppStore((s) => s.emailVerified)
   const adminVerified = useAppStore((s) => s.adminVerified)
+  const verificationStatus = useAppStore((s) => s.verificationStatus)
+  const verificationNotes = useAppStore((s) => s.verificationNotes)
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
 
   const allowed = useMemo(() => {
+    const needsRevision = (verificationStatus || '').toLowerCase() === 'needs_revision'
     if (required === 'authenticated') return isAuthenticated
-    if (required === 'emailVerified') return isAuthenticated && emailVerified
-    return isAuthenticated && emailVerified && adminVerified
-  }, [required, isAuthenticated, emailVerified, adminVerified])
+    if (required === 'emailVerified') return isAuthenticated && emailVerified && !needsRevision
+    return isAuthenticated && emailVerified && adminVerified && !needsRevision
+  }, [required, isAuthenticated, emailVerified, adminVerified, verificationStatus])
 
   const dynamicReason = useMemo(() => {
     if (!isAuthenticated) return 'Please log in first to continue.'
     if (!emailVerified) return 'Verify your Gmail account first to unlock full access.'
+    if ((verificationStatus || '').toLowerCase() === 'needs_revision') {
+      return `Your account needs updates before approval. ${verificationNotes ? `Feedback: ${verificationNotes}` : 'Visit the Resolve Review page to resubmit.'}`
+    }
     if (!adminVerified) return 'Your account is still under admin review. Please wait for approval.'
     return 'This action is currently unavailable.'
-  }, [isAuthenticated, emailVerified, adminVerified])
+  }, [isAuthenticated, emailVerified, adminVerified, verificationStatus, verificationNotes])
 
-  const tooltipText = tooltip || (allowed ? '' : (isAuthenticated ? (!emailVerified ? 'Email verification required' : 'Admin approval required') : 'Login required to use this feature'))
+  const tooltipText = useMemo(() => {
+    if (tooltip) return tooltip
+    if (allowed) return ''
+    if (!isAuthenticated) return 'Login required to use this feature'
+    if (!emailVerified) return 'Email verification required'
+    if ((verificationStatus || '').toLowerCase() === 'needs_revision') return 'Account needs updates before approval'
+    if (!adminVerified) return 'Admin approval required'
+    return ''
+  }, [tooltip, allowed, isAuthenticated, emailVerified, adminVerified, verificationStatus])
 
   const wrappedChild = useMemo(() => {
     if (!isValidElement(children)) return children

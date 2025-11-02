@@ -14,7 +14,7 @@ export default function Residents() {
   const adminMunicipalitySlug = useAdminStore((state: AdminState) => state.user?.admin_municipality_slug || state.user?.municipality_slug)
   const adminMunicipalityId = useAdminStore((state: AdminState) => state.user?.admin_municipality_id ?? state.user?.municipality_id ?? null)
   const [activeTab, setActiveTab] = useState<'residents'|'transfers'>('residents')
-  const [filter, setFilter] = useState<'all' | 'verified' | 'pending' | 'suspended'>('all')
+  const [filter, setFilter] = useState<'all' | 'verified' | 'pending' | 'needs_revision' | 'suspended'>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -45,7 +45,7 @@ export default function Residents() {
 
         let unified = [
           ...verified.map((u: any) => ({ ...u, __status: 'verified' })),
-          ...pending.map((u: any) => ({ ...u, __status: 'pending' })),
+          ...pending.map((u: any) => ({ ...u, __status: ((u.verification_status || 'pending') as string).toLowerCase() })),
         ]
 
         // Scope to admin's municipality (prefer numeric id to avoid string mismatches)
@@ -67,10 +67,18 @@ export default function Residents() {
           email: u.email || '',
           phone: u.phone_number || '',
           municipality: u.municipality_name || '—',
-          status: u.__status || (u.is_active === false ? 'suspended' : (u.admin_verified ? 'verified' : (u.admin_verified === false ? 'pending' : 'pending'))),
+          status: (() => {
+            if (u.is_active === false) return 'suspended'
+            const derived = (u.__status || u.verification_status || '').toLowerCase()
+            if (derived === 'needs_revision') return 'needs_revision'
+            if (derived === 'verified') return 'verified'
+            if (derived === 'pending') return 'pending'
+            return u.admin_verified ? 'verified' : 'pending'
+          })(),
           joined: (u.created_at || '').slice(0, 10),
           avatar: (u.first_name?.[0] || 'U') + (u.last_name?.[0] || ''),
           profile_picture: u.profile_picture,
+          verification_notes: u.verification_notes,
         }))
         if (mounted) setRows(mapped)
       } catch (e: any) {
@@ -172,6 +180,7 @@ export default function Residents() {
     all: rows.length,
     verified: rows.filter((r) => r.status === 'verified').length,
     pending: rows.filter((r) => r.status === 'pending').length,
+    needs_revision: rows.filter((r) => r.status === 'needs_revision').length,
     suspended: rows.filter((r) => r.status === 'suspended').length,
   }), [rows])
 
@@ -182,10 +191,10 @@ export default function Residents() {
 
   // openResidentByUserId removed in favor of dedicated transfer modal
 
-  const updateRowStatus = (userId: string, status: 'verified' | 'pending' | 'suspended') => {
-    setRows((prev: any[]) => prev.map((r: any) => (String(r.id) === String(userId) ? { ...r, status } : r)))
+  const updateRowStatus = (userId: string, status: 'verified' | 'pending' | 'needs_revision' | 'suspended', notes?: string | null) => {
+    setRows((prev: any[]) => prev.map((r: any) => (String(r.id) === String(userId) ? { ...r, status, verification_notes: notes ?? r.verification_notes } : r)))
     // If details are open for this user, keep basic status in sync
-    setSelected((prev: any | null) => (prev && String(prev.id) === String(userId) ? { ...prev, status } : prev))
+    setSelected((prev: any | null) => (prev && String(prev.id) === String(userId) ? { ...prev, status, verification_notes: notes ?? prev.verification_notes } : prev))
   }
 
   const handleApprove = async (e: any, resident: any) => {
@@ -195,7 +204,7 @@ export default function Residents() {
       setError(null)
       setActionLoading(id)
       await userApi.verifyUser(Number(id))
-      updateRowStatus(id, 'verified')
+      updateRowStatus(id, 'verified', null)
       showToast('Resident marked as verified.', 'success')
     } catch (err: any) {
       const msg = handleApiError(err)
@@ -214,8 +223,8 @@ export default function Residents() {
       setError(null)
       setActionLoading(id)
       await userApi.rejectUser(Number(id), reason)
-      updateRowStatus(id, 'suspended')
-      showToast('Resident rejected and notified via email.', 'success')
+      updateRowStatus(id, 'needs_revision', reason)
+      showToast('Resident asked to update their information. They have been notified via email.', 'success')
     } catch (err: any) {
       const msg = handleApiError(err)
       setError(msg)
@@ -265,6 +274,7 @@ export default function Residents() {
                     { value: 'all', label: 'All Status', count: counts.all },
                     { value: 'verified', label: 'Verified', count: counts.verified },
                     { value: 'pending', label: 'Pending', count: counts.pending },
+                    { value: 'needs_revision', label: 'Needs Updates', count: counts.needs_revision },
                     { value: 'suspended', label: 'Suspended', count: counts.suspended },
                   ].map((status) => (
                     <button
@@ -379,19 +389,36 @@ export default function Residents() {
               ) },
               { key: 'status', header: 'Status', className: 'md:col-span-3 xl:col-span-2', render: (r: any) => (
                 <div className="flex items-center h-10">
-                  <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${r.status === 'verified' ? 'bg-forest-100 text-forest-700' : r.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                  <span
+                    className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${
+                      r.status === 'verified'
+                        ? 'bg-forest-100 text-forest-700'
+                        : r.status === 'needs_revision'
+                          ? 'bg-orange-100 text-orange-700'
+                          : r.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-700'
+                            : 'bg-red-100 text-red-700'
+                    }`}
+                  >
                     {r.status === 'verified' && <Check className="w-4 h-4" aria-hidden="true" />}
                     {r.status === 'pending' && <Hourglass className="w-4 h-4" aria-hidden="true" />}
-                    <span>{r.status.charAt(0).toUpperCase() + r.status.slice(1)}</span>
+                    {r.status === 'needs_revision' && <Pause className="w-4 h-4" aria-hidden="true" />}
+                    <span>{r.status.split('_').map((s: string) => s.charAt(0).toUpperCase() + s.slice(1)).join(' ')}</span>
                   </span>
                 </div>
               ) },
               { key: 'actions', header: 'Actions', className: 'md:col-span-2 xl:col-span-2 text-right', render: (r: any) => (
                 <div className="flex items-center justify-end h-10 gap-1 whitespace-nowrap">
-                  {r.status === 'pending' ? (
+                  {r.status === 'pending' || r.status === 'needs_revision' ? (
                     <>
-                      <button title="Reject" aria-label="Reject" className="icon-btn danger" onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleReject(e as any, r) }} disabled={actionLoading === String(r.id)}>
-                        <X className="w-4 h-4" aria-hidden="true" />
+                      <button
+                        title="Request changes"
+                        aria-label="Request changes"
+                        className="icon-btn danger"
+                        onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleReject(e as any, r) }}
+                        disabled={actionLoading === String(r.id)}
+                      >
+                        <Pause className="w-4 h-4" aria-hidden="true" />
                       </button>
                       <button title="Approve" aria-label="Approve" className="icon-btn primary" onClick={(e: React.MouseEvent) => { e.stopPropagation(); handleApprove(e as any, r) }} disabled={actionLoading === String(r.id)}>
                         <Check className="w-4 h-4" aria-hidden="true" />
@@ -408,10 +435,13 @@ export default function Residents() {
                             setActionLoading(String(id))
                             const res = await adminApi.suspendResident(id)
                             const updated = (res as any)?.user || (res as any)?.data?.user || (res as any)
-                            const nextStatus: 'verified' | 'pending' | 'suspended' = updated?.is_active === false
+                            const derived = (updated?.verification_status || '').toLowerCase()
+                            const nextStatus: 'verified' | 'pending' | 'needs_revision' | 'suspended' = updated?.is_active === false
                               ? 'suspended'
-                              : (updated?.admin_verified ? 'verified' : 'pending')
-                            updateRowStatus(String(id), nextStatus)
+                              : derived === 'needs_revision'
+                                ? 'needs_revision'
+                                : (updated?.admin_verified ? 'verified' : 'pending')
+                            updateRowStatus(String(id), nextStatus, updated?.verification_notes ?? null)
                             showToast(nextStatus === 'suspended' ? 'Resident suspended' : 'Resident reactivated', 'success')
                           } catch (err: any) {
                             const msg = handleApiError(err as any) || 'Failed to update resident status'
@@ -452,7 +482,7 @@ export default function Residents() {
           userId={Number(selected?.id)}
           basic={selected}
           onClose={() => setDetailOpen(false)}
-          onStatusChange={(id, status) => updateRowStatus(String(id), status)}
+          onStatusChange={(id, status, notes) => updateRowStatus(String(id), status, notes)}
         />
       )}
       {detailOpen && activeTab==='transfers' && (
@@ -464,17 +494,19 @@ export default function Residents() {
 
 
 // Detail modal embedded for simplicity
-function ResidentDetailModal({ userId, basic, onClose, onStatusChange }: { userId: number; basic: any; onClose: () => void; onStatusChange: (id: number, status: 'verified' | 'pending' | 'suspended') => void }) {
+function ResidentDetailModal({ userId, basic, onClose, onStatusChange }: { userId: number; basic: any; onClose: () => void; onStatusChange: (id: number, status: 'verified' | 'pending' | 'needs_revision' | 'suspended', notes?: string | null) => void }) {
   const [data, setData] = useState<any>(basic)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<boolean>(false)
 
   // Derive current status from latest data
-  const status: 'verified' | 'pending' | 'suspended' = ((): any => {
+  const status: 'verified' | 'pending' | 'needs_revision' | 'suspended' = ((): any => {
     const u = data || basic
     if (!u) return 'pending'
     if (u?.is_active === false) return 'suspended'
+    const derived = (u?.verification_status || '').toLowerCase()
+    if (derived === 'needs_revision') return 'needs_revision'
     if (u?.admin_verified) return 'verified'
     return 'pending'
   })()
@@ -502,9 +534,9 @@ function ResidentDetailModal({ userId, basic, onClose, onStatusChange }: { userI
       setError(null)
       setActionLoading(true)
       await userApi.verifyUser(Number(userId))
-      onStatusChange(userId, 'verified')
+      onStatusChange(userId, 'verified', null)
       // Reflect locally in modal
-      setData((prev: any) => ({ ...(prev || {}), admin_verified: true, is_active: true }))
+      setData((prev: any) => ({ ...(prev || {}), admin_verified: true, is_active: true, verification_status: 'verified', verification_notes: null }))
     } catch (e: any) {
       setError(handleApiError(e))
     } finally {
@@ -518,9 +550,9 @@ function ResidentDetailModal({ userId, basic, onClose, onStatusChange }: { userI
       setError(null)
       setActionLoading(true)
       await userApi.rejectUser(Number(userId), reason)
-      onStatusChange(userId, 'suspended')
+      onStatusChange(userId, 'needs_revision', reason)
       // Reflect locally in modal
-      setData((prev: any) => ({ ...(prev || {}), is_active: false, admin_verified: false }))
+      setData((prev: any) => ({ ...(prev || {}), is_active: true, admin_verified: false, verification_status: 'needs_revision', verification_notes: reason }))
     } catch (e: any) {
       setError(handleApiError(e))
     } finally {
@@ -535,10 +567,10 @@ function ResidentDetailModal({ userId, basic, onClose, onStatusChange }: { userI
       title="Resident Details"
       footer={(
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2">
-          {status === 'pending' ? (
+          {(status === 'pending' || status === 'needs_revision') ? (
             <>
               <Button variant="danger" size="sm" onClick={rejectFromModal} disabled={actionLoading}>
-                {actionLoading ? 'Processing…' : 'Reject'}
+                {actionLoading ? 'Processing…' : 'Request changes'}
               </Button>
               <Button size="sm" onClick={approveFromModal} disabled={actionLoading}>
                 {actionLoading ? 'Processing…' : 'Approve'}
@@ -563,11 +595,16 @@ function ResidentDetailModal({ userId, basic, onClose, onStatusChange }: { userI
           <p className="text-sm text-neutral-600">@{data?.username} • {data?.email}</p>
           {data?.municipality_name && (<p className="text-sm text-neutral-600">{data.municipality_name}</p>)}
           <div className="mt-2">
-            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${status === 'verified' ? 'bg-forest-100 text-forest-700' : status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${status === 'verified' ? 'bg-forest-100 text-forest-700' : status === 'needs_revision' ? 'bg-orange-100 text-orange-700' : status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
               {status === 'verified' ? (
                 <>
                   <Check className="w-4 h-4" aria-hidden="true" />
                   <span>Verified</span>
+                </>
+              ) : status === 'needs_revision' ? (
+                <>
+                  <Pause className="w-4 h-4" aria-hidden="true" />
+                  <span>Needs updates</span>
                 </>
               ) : status === 'pending' ? (
                 <>
@@ -579,6 +616,11 @@ function ResidentDetailModal({ userId, basic, onClose, onStatusChange }: { userI
               )}
             </span>
           </div>
+          {status === 'needs_revision' && data?.verification_notes && (
+            <div className="mt-3 text-sm text-orange-700 bg-orange-50 border border-orange-200 rounded px-3 py-2">
+              <span className="font-medium">Resident feedback:</span> {data.verification_notes}
+            </div>
+          )}
         </div>
       </div>
 

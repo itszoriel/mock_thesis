@@ -19,6 +19,8 @@ type User = {
   valid_id_front?: string
   valid_id_back?: string
   selfie_with_id?: string
+  verification_status?: string
+  verification_notes?: string
 }
 
 type AppState = {
@@ -34,6 +36,8 @@ type AppState = {
   setAuthBootstrapped: (v: boolean) => void
   emailVerified: boolean
   adminVerified: boolean
+  verificationStatus?: string
+  verificationNotes?: string
   setAuth: (user: User, accessToken: string, refreshToken: string) => void
   loginAs: (r: 'resident' | 'admin') => void
   logout: () => void
@@ -54,6 +58,8 @@ export const useAppStore = create<AppState>((set) => {
 
   const emailVerified = !!initialUser?.email_verified
   const adminVerified = !!initialUser?.admin_verified
+  const verificationStatus = initialUser?.verification_status
+  const verificationNotes = initialUser?.verification_notes
 
   // Function to refresh user profile data
   const refreshUserProfile = async () => {
@@ -69,6 +75,8 @@ export const useAppStore = create<AppState>((set) => {
             user: userData,
             emailVerified: !!userData.email_verified,
             adminVerified: !!userData.admin_verified,
+            verificationStatus: userData.verification_status,
+            verificationNotes: userData.verification_notes,
           })
         }
       } catch (error) {
@@ -101,6 +109,8 @@ export const useAppStore = create<AppState>((set) => {
     setAuthBootstrapped: (v) => set({ isAuthBootstrapped: v }),
     emailVerified,
     adminVerified,
+    verificationStatus,
+    verificationNotes,
     setAuth: (user, accessToken, _refreshToken) => {
       const mappedRole: 'public' | 'resident' | 'admin' = user.role === 'municipal_admin' ? 'admin' : (user.role as any)
       // Only allow resident sessions in web app
@@ -121,6 +131,8 @@ export const useAppStore = create<AppState>((set) => {
         isAuthenticated: true,
         emailVerified: !!user.email_verified,
         adminVerified: !!user.admin_verified,
+        verificationStatus: user.verification_status,
+        verificationNotes: user.verification_notes,
       })
     },
     loginAs: (r) => {
@@ -135,7 +147,7 @@ export const useAppStore = create<AppState>((set) => {
         localStorage.removeItem('munlink:user')
       }
       setApiSessionAccessToken(null)
-      set({ role: 'public', isAuthenticated: false, user: undefined, accessToken: undefined, refreshToken: undefined, emailVerified: false, adminVerified: false })
+      set({ role: 'public', isAuthenticated: false, user: undefined, accessToken: undefined, refreshToken: undefined, emailVerified: false, adminVerified: false, verificationStatus: undefined, verificationNotes: undefined })
     },
     forceLogout: () => {
       if (typeof window !== 'undefined') {
@@ -143,7 +155,7 @@ export const useAppStore = create<AppState>((set) => {
         localStorage.removeItem('munlink:user')
       }
       setApiSessionAccessToken(null)
-      set({ role: 'public', isAuthenticated: false, user: undefined, accessToken: undefined, refreshToken: undefined, emailVerified: false, adminVerified: false })
+      set({ role: 'public', isAuthenticated: false, user: undefined, accessToken: undefined, refreshToken: undefined, emailVerified: false, adminVerified: false, verificationStatus: undefined, verificationNotes: undefined })
     },
   }
 })

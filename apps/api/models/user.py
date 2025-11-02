@@ -40,6 +40,8 @@ class User(db.Model):
     email_verified = db.Column(db.Boolean, default=False)
     admin_verified = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
+    verification_status = db.Column(db.String(30), nullable=False, default='pending')
+    verification_notes = db.Column(db.Text, nullable=True)
     
     # Profile Picture
     profile_picture = db.Column(db.String(255), nullable=True)
@@ -93,6 +95,8 @@ class User(db.Model):
             'email_verified': self.email_verified,
             'admin_verified': self.admin_verified,
             'is_active': self.is_active,
+            'verification_status': self.verification_status,
+            'verification_notes': self.verification_notes if include_sensitive else None,
             'profile_picture': self.profile_picture,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'last_login': self.last_login.isoformat() if self.last_login else None,
@@ -142,9 +146,12 @@ class User(db.Model):
             return 'public'
         elif self.is_under_18():
             return 'resident_under_18'
-        elif self.email_verified and not self.admin_verified:
+        status = (self.verification_status or '').lower()
+        if status == 'needs_revision':
+            return 'resident_needs_revision'
+        if self.email_verified and not self.admin_verified:
             return 'resident_email_verified'
-        elif self.admin_verified:
+        if self.admin_verified:
             return 'resident_fully_verified'
         else:
             return 'resident_unverified'

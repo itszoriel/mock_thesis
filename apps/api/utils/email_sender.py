@@ -116,14 +116,14 @@ def send_user_status_email(to_email: str, approved: bool, reason: str | None = N
             "You can now log in to your account.\n"
         )
     else:
-        subject = f"{app_name}: Registration Rejected"
+        subject = f"{app_name}: Action Required on Your Account"
         web_url = app.config.get('WEB_URL', 'https://munlink-web.onrender.com')
         body = (
             "Hello,\n\n"
-            "Unfortunately your MunLink Zambales registration was rejected by the municipal administrator.\n"
-            f"Reason: {reason or 'Not specified.'}\n\n"
-            "To continue using MunLink, please sign up again using the same Gmail address and resubmit all required identification documents for review.\n"
-            f"Registration link: {web_url}/register\n\n"
+            "Your MunLink Zambales registration needs a few updates before it can be approved by the municipal administrator.\n"
+            f"Reason provided: {reason or 'Not specified.'}\n\n"
+            "Please log in to MunLink, review the feedback, and update your profile or verification documents. Once you're ready, submit the information again from the Resolve Review screen.\n"
+            f"Account link: {web_url}/resolve-review\n\n"
             "If you believe this decision was made in error, contact your municipal hall or reply to this email with additional details.\n\n"
             f"Thank you,\n{app_name} Team"
         )

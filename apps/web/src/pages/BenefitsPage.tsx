@@ -151,6 +151,41 @@ export default function BenefitsPage() {
     return benefitRequirements.every((entry) => entry.file instanceof File)
   }, [benefitRequirements])
 
+  const eligibilityList = useMemo(() => {
+    if (!selected) return [] as string[]
+    const entries: string[] = []
+    const pushNormalized = (value: unknown) => {
+      if (Array.isArray(value)) {
+        value.forEach((item) => pushNormalized(item))
+        return
+      }
+      if (typeof value === 'string') {
+        const parts = value
+          .split(/\r?\n|[,•]/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+        if (parts.length > 1) {
+          parts.forEach((part) => entries.push(part))
+        } else if (parts.length === 1) {
+          entries.push(parts[0])
+        }
+        return
+      }
+      if (value != null) {
+        entries.push(String(value))
+      }
+    }
+    pushNormalized((selected as any)?.eligibility)
+    pushNormalized((selected as any)?.eligibility_criteria)
+    // Deduplicate while preserving order
+    const seen = new Set<string>()
+    return entries.filter((item) => {
+      if (seen.has(item)) return false
+      seen.add(item)
+      return true
+    })
+  }, [selected])
+
   return (
     <div className="container-responsive py-12">
       <div className="mb-3">
@@ -309,7 +344,11 @@ export default function BenefitsPage() {
           <div className="space-y-3">
             <div className="text-sm">Please confirm you meet the eligibility:</div>
             <ul className="list-disc list-inside text-sm text-gray-700">
-              {(((selected as any)?.eligibility) || ((selected as any)?.eligibility_criteria) || []).map((e: string, i: number) => (<li key={i}>{e}</li>))}
+              {eligibilityList.length === 0 ? (
+                <li>No eligibility criteria provided. Please review program details.</li>
+              ) : (
+                eligibilityList.map((e: string, i: number) => (<li key={i}>{e}</li>))
+              )}
             </ul>
             <div className="flex justify-end">
               <button className="btn btn-primary inline-flex items-center gap-2" onClick={() => setStep(2)}>
