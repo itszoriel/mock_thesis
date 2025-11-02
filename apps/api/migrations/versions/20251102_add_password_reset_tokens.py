@@ -1,6 +1,6 @@
 """add password reset tokens table
 
-Revision ID: 20251102_reset_tokens
+Revision ID: 20251102_add_password_reset_tokens
 Revises: 7e00b3f22e71
 Create Date: 2025-11-02
 """
@@ -20,7 +20,7 @@ def _index_exists(bind, table_name: str, index_name: str) -> bool:
 
 
 # revision identifiers, used by Alembic.
-revision = '20251102_reset_tokens'
+revision = '20251102_add_password_reset_tokens'
 down_revision = '7e00b3f22e71'
 branch_labels = None
 depends_on = None

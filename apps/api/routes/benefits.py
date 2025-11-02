@@ -105,9 +105,13 @@ def list_programs():
 def get_program(program_id: int):
     try:
         program = BenefitProgram.query.get(program_id)
-        if not program or not program.is_active:
+        if not program:
             return jsonify({'error': 'Program not found'}), 404
-        return jsonify(program.to_dict()), 200
+
+        data = program.to_dict()
+        if not program.is_active or not program.is_accepting_applications:
+            data['warning'] = 'This program is no longer accepting applications.'
+        return jsonify(data), 200
     except Exception as e:
         return jsonify({'error': 'Failed to get program', 'details': str(e)}), 500
 
@@ -142,7 +146,9 @@ def create_application():
 
         program = BenefitProgram.query.get(program_id)
         if not program or not program.is_active:
-            return jsonify({'error': 'Invalid program'}), 400
+            return jsonify({'error': 'Selected program is no longer available'}), 400
+        if not getattr(program, 'is_accepting_applications', True):
+            return jsonify({'error': 'Selected program is not currently accepting applications'}), 400
 
         # Municipality scoping: allow province-wide (None) or user's municipality
         if program.municipality_id and user.municipality_id != program.municipality_id:

@@ -12,6 +12,7 @@ type Issue = {
   description: string
   municipality?: string
   category?: string
+  category_label?: string
   status: 'submitted' | 'under_review' | 'in_progress' | 'resolved' | 'closed' | 'rejected'
   created_at?: string
 }
@@ -158,11 +159,17 @@ export default function IssuesPage() {
                   <p className={`text-sm text-gray-700 mt-1 mb-2 ${openId===i.id ? '' : 'line-clamp-2'}`}>{i.description}</p>
                   {openId===i.id && (
                     <div className="mt-2 space-y-2">
-                      <div className="text-xs text-gray-500">{i.municipality || 'Zambales'}{i.category ? ` • ${i.category?.name || i.category}` : ''}</div>
+                      <div className="text-xs text-gray-500">
+                        {i.municipality || 'Zambales'}
+                        {(() => {
+                          const cat = i?.category_label || (i?.category && (i.category.name || i.category))
+                          return cat ? ` • ${cat}` : ''
+                        })()}
+                      </div>
                       {!!(i.attachments && i.attachments.length) && (
                         <div className="mt-2 flex gap-2 overflow-x-auto">
                           {i.attachments.slice(0,5).map((p: string, idx: number) => (
-                            <img key={idx} src={mediaUrl(p)} alt="attachment" className="h-16 w-16 object-cover rounded border" />
+                            <img key={idx} src={mediaUrl(p)} alt="attachment" className="h-16 w-16 object-contain rounded border bg-white" />
                           ))}
                         </div>
                       )}

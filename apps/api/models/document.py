@@ -160,6 +160,27 @@ class DocumentRequest(db.Model):
             'ready_at': self.ready_at.isoformat() if self.ready_at else None,
         }
         
+        # Surface civil status / age hints if stored in resident_input/admin edits
+        civil_status = None
+        age_value = None
+        try:
+            if isinstance(self.admin_edited_content, dict):
+                civil_status = self.admin_edited_content.get('civil_status', civil_status)
+                age_value = self.admin_edited_content.get('age', age_value)
+        except Exception:
+            pass
+        try:
+            if civil_status is None and isinstance(self.resident_input, dict):
+                civil_status = self.resident_input.get('civil_status', civil_status)
+            if age_value is None and isinstance(self.resident_input, dict):
+                age_value = self.resident_input.get('age', age_value)
+        except Exception:
+            pass
+        if civil_status is not None:
+            data['civil_status'] = civil_status
+        if age_value is not None:
+            data['age'] = age_value
+
         if include_user and self.user:
             data['user'] = self.user.to_dict()
         

@@ -155,7 +155,7 @@ export default function BenefitsPage() {
     <div className="container-responsive py-12">
       <div className="mb-3">
         <h1 className="text-fluid-3xl font-serif font-semibold">Benefits</h1>
-        <p className="text-gray-600">Explore available programs. You can view details without logging in; applying requires an account.</p>
+        <p className="text-gray-600">Explore available programs tailored to your municipality and apply once you meet the requirements.</p>
       </div>
 
       <Card className="mb-6">

@@ -108,6 +108,10 @@ export const issueApi = {
     return apiClient.get(`/api/admin/issues?${params.toString()}`).then(res => res.data)
   },
 
+  // Get available categories (public endpoint)
+  getCategories: (): Promise<ApiResponse<{ categories: any[]; count: number }>> =>
+    apiClient.get('/api/issues/categories').then(res => res.data),
+
   // Get issue details
   getIssue: (issueId: number): Promise<ApiResponse<any>> =>
     apiClient.get(`/api/admin/issues/${issueId}`).then(res => res.data),
@@ -316,6 +320,8 @@ export const adminApi = {
     const res = await apiClient.get('/api/admin/transactions', { params })
     return res.data
   },
+  suspendResident: (id: number): Promise<ApiResponse<{ user: any }>> =>
+    apiClient.post(`/api/admin/users/${id}/suspend`).then(res => res.data),
   // Reports aggregate
   getReports: async (): Promise<any> => {
     // Prefer composing from known endpoints to avoid CORS preflight failures on non-existent routes

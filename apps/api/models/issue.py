@@ -56,6 +56,7 @@ class Issue(db.Model):
     
     # Issue Details
     category_id = db.Column(db.Integer, db.ForeignKey('issue_categories.id'), nullable=False)
+    category_label = db.Column(db.String(120), nullable=True)
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=False)
     
@@ -123,6 +124,7 @@ class Issue(db.Model):
             'issue_number': self.issue_number,
             'user_id': self.user_id,
             'category_id': self.category_id,
+            'category_label': self.category_label,
             'title': self.title,
             'description': self.description,
             'municipality_id': self.municipality_id,

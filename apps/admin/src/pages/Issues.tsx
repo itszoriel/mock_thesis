@@ -10,6 +10,7 @@ type Issue = {
   municipality_name?: string
   user?: { first_name?: string; last_name?: string }
   category?: { name?: string }
+  category_label?: string
   attachments?: string[]
 }
 
@@ -18,7 +19,9 @@ export default function Issues() {
   const [error, setError] = useState<string | null>(null)
   const [items, setItems] = useState<Issue[]>([])
   const [status, setStatus] = useState<'all' | 'pending' | 'in_progress' | 'resolved' | 'closed'>('all')
+  const [category, setCategory] = useState<string>('all')
   const [actionLoading, setActionLoading] = useState<number | null>(null)
+  const [categories, setCategories] = useState<Array<{ id: number; name: string }>>([])
 
   useEffect(() => {
     let mounted = true
@@ -26,7 +29,12 @@ export default function Issues() {
       try {
         setError(null)
         setLoading(true)
-        const res = await issueApi.getIssues({ status: status === 'all' ? undefined : status, page: 1, per_page: 50 })
+        const res = await issueApi.getIssues({
+          status: status === 'all' ? undefined : status,
+          category: category === 'all' ? undefined : category,
+          page: 1,
+          per_page: 50,
+        })
         const list = ((res as any)?.issues || (res as any)?.data?.issues || []) as Issue[]
         if (mounted) setItems(list)
       } catch (e: any) {
@@ -37,7 +45,21 @@ export default function Issues() {
       }
     })()
     return () => { mounted = false }
-  }, [status])
+  }, [status, category])
+
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        const res = await issueApi.getCategories()
+        const list = ((res as any)?.categories || (res as any)?.data?.categories || []) as Array<{ id: number; name: string }>
+        if (mounted) setCategories(list)
+      } catch {
+        if (mounted) setCategories([])
+      }
+    })()
+    return () => { mounted = false }
+  }, [])
 
   const updateStatus = async (id: number, next: 'pending' | 'in_progress' | 'resolved' | 'closed') => {
     try {
@@ -61,10 +83,23 @@ export default function Issues() {
       <div className="bg-white/70 backdrop-blur-xl rounded-3xl shadow-xl border border-white/50 overflow-hidden">
         <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h2 className="text-xl font-bold text-neutral-900">Reported Issues</h2>
-          <div className="inline-flex gap-2 overflow-x-auto">
-            {['all','pending','in_progress','resolved','closed'].map((s) => (
-              <button key={s} onClick={()=> setStatus(s as any)} className={`px-3 py-1.5 rounded-full text-sm font-medium ${status===s? 'bg-ocean-600 text-white' : 'bg-white border border-neutral-200 text-neutral-700'}`}>{s.replace('_',' ')}</button>
-            ))}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+            <div className="inline-flex gap-2 overflow-x-auto">
+              {['all','pending','in_progress','resolved','closed'].map((s) => (
+                <button key={s} onClick={()=> setStatus(s as any)} className={`px-3 py-1.5 rounded-full text-sm font-medium ${status===s? 'bg-ocean-600 text-white' : 'bg-white border border-neutral-200 text-neutral-700'}`}>{s.replace('_',' ')}</button>
+              ))}
+            </div>
+            <select
+              className="px-3 py-1.5 rounded-full border border-neutral-200 text-sm font-medium bg-white"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              aria-label="Filter by category"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={String(cat.id)}>{cat.name}</option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -82,15 +117,15 @@ export default function Issues() {
                 <div className="sm:col-span-5 min-w-0">
                   <p className="font-bold text-neutral-900 mb-1 truncate">{it.title}</p>
                   <p className="text-sm text-neutral-700 line-clamp-2">{it.description}</p>
-                  <div className="mt-2 flex items-center gap-2 text-xs text-neutral-600">
-                    {it.category?.name && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-neutral-100 border border-neutral-200">{it.category.name}</span>
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-neutral-600">
+                    {(it.category?.name || it.category_label) && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-neutral-100 border border-neutral-200">{it.category?.name || it.category_label}</span>
                     )}
                   </div>
                   {it.attachments && it.attachments.length > 0 && (
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       {it.attachments.slice(0,3).map((a, idx) => (
-                        <img key={idx} src={mediaUrl(a)} alt="Attachment" className="w-full h-16 object-cover rounded border" />
+                        <img key={idx} src={mediaUrl(a)} alt="Attachment" className="w-full h-16 object-contain rounded border bg-white" />
                       ))}
                     </div>
                   )}

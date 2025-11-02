@@ -448,6 +448,85 @@ def seed_benefit_programs(conn: psycopg.Connection, municipalities: Iterable[Mun
     return total
 
 
+def seed_issue_categories(conn: psycopg.Connection) -> int:
+    categories = [
+        {
+            "name": "Technical Problem",
+            "slug": "technical-problem",
+            "description": "Portal bugs, QR errors, or any MunLink system issue.",
+            "icon": "cpu",
+        },
+        {
+            "name": "Infrastructure",
+            "slug": "infrastructure",
+            "description": "Roads, bridges, streetlights, traffic signals, and similar concerns.",
+            "icon": "road",
+        },
+        {
+            "name": "Utilities & Services",
+            "slug": "utilities-services",
+            "description": "Water, electricity, sanitation, and waste management issues.",
+            "icon": "plug",
+        },
+        {
+            "name": "Public Safety",
+            "slug": "public-safety",
+            "description": "Crime reports, accidents, fire hazards, or suspicious activity.",
+            "icon": "shield",
+        },
+        {
+            "name": "Health & Sanitation",
+            "slug": "health-sanitation",
+            "description": "Health center concerns, vaccination drives, and cleanliness.",
+            "icon": "heart-pulse",
+        },
+        {
+            "name": "Community Services",
+            "slug": "community-services",
+            "description": "Livelihood, benefits distribution, or barangay-level services.",
+            "icon": "users",
+        },
+        {
+            "name": "Environmental Concern",
+            "slug": "environmental-concern",
+            "description": "Flooding, drainage, illegal dumping, tree cutting, and similar issues.",
+            "icon": "leaf",
+        },
+        {
+            "name": "Other / General Inquiry",
+            "slug": "other",
+            "description": "For reports that do not match the predefined categories.",
+            "icon": "message-circle",
+        },
+    ]
+
+    total = 0
+    with conn.cursor() as cur:
+        for cat in categories:
+            payload = {
+                "name": cat["name"],
+                "slug": cat["slug"],
+                "description": cat["description"],
+                "icon": cat["icon"],
+            }
+            cur.execute(
+                """
+                INSERT INTO issue_categories (name, slug, description, icon, is_active)
+                VALUES (%(name)s, %(slug)s, %(description)s, %(icon)s, TRUE)
+                ON CONFLICT (slug) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    description = EXCLUDED.description,
+                    icon = EXCLUDED.icon,
+                    is_active = EXCLUDED.is_active
+                ;
+                """,
+                payload,
+            )
+            total += 1
+    conn.commit()
+    return total
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Seed Render Postgres with baseline data")
     parser.add_argument("--database-url", required=True, help="PostgreSQL connection URL")
@@ -461,8 +540,14 @@ def main() -> None:
 
         doc_count = seed_document_types(conn)
         benefit_count = seed_benefit_programs(conn, municipalities)
+        category_count = seed_issue_categories(conn)
 
-        print(f"Seeded/updated {doc_count} document types and {benefit_count} benefit programs across {len(municipalities)} municipalities.")
+        print(
+            "Seed complete:"
+            f" {doc_count} document types,"
+            f" {benefit_count} benefit programs,"
+            f" {category_count} issue categories."
+        )
     finally:
         conn.close()
 

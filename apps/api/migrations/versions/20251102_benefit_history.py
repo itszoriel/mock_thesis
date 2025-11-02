@@ -1,7 +1,7 @@
 """add benefit application completed_at
 
 Revision ID: 20251102_benefit_history
-Revises: 20251102_reset_tokens
+Revises: 20251102_add_password_reset_tokens
 Create Date: 2025-11-02
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20251102_benefit_history'
-down_revision = '20251102_reset_tokens'
+down_revision = '20251102_add_password_reset_tokens'
 branch_labels = None
 depends_on = None
 

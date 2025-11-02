@@ -448,10 +448,22 @@ def get_user_growth():
         range_param = request.args.get('range', 'last_30_days')
         start, end = _parse_range(range_param)
 
-        # SQLite-friendly daily buckets
+        bind = db.session.get_bind()
+        dialect = getattr(getattr(bind, 'dialect', None), 'name', 'sqlite') if bind else 'sqlite'
+
+        if dialect == 'sqlite':
+            day_column = func.strftime('%Y-%m-%d', User.created_at)
+            group_by_col = 'day'
+            order_by_col = 'day'
+        else:
+            # For PostgreSQL and others: truncate to day and handle tz-aware datetimes
+            day_column = func.date_trunc('day', User.created_at)
+            group_by_col = day_column
+            order_by_col = day_column
+
         rows = (
             db.session.query(
-                func.strftime('%Y-%m-%d', User.created_at).label('day'),
+                day_column.label('day'),
                 func.count(User.id)
             )
             .filter(and_(
@@ -460,11 +472,21 @@ def get_user_growth():
                 User.created_at >= start,
                 User.created_at <= end,
             ))
-            .group_by('day')
-            .order_by('day')
+            .group_by(group_by_col)
+            .order_by(order_by_col)
             .all()
         )
-        counts = {d: int(c) for d, c in rows}
+
+        counts = {}
+        for day_value, count in rows:
+            if isinstance(day_value, str):
+                key = day_value
+            else:
+                try:
+                    key = day_value.strftime('%Y-%m-%d')
+                except Exception:
+                    key = str(day_value)
+            counts[key] = int(count)
         # Build full series inclusive of dates in range
         days = []
         cur = start
@@ -1705,7 +1727,7 @@ def _parse_range(range_param: str):
     if range_param == 'last_90_days':
         return now - timedelta(days=90), now
     if range_param == 'this_year':
-        start = datetime(now.year, 1, 1)
+        start = datetime(now.year, 1, 1, tzinfo=timezone.utc)
         return start, now
     # default last_30_days
     return now - timedelta(days=30), now

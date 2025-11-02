@@ -15,6 +15,10 @@ type Profile = {
   municipality_name?: string
   barangay_id?: number
   barangay_name?: string
+  valid_id_front?: string
+  valid_id_back?: string
+  selfie_with_id?: string
+  proof_of_residency?: string
 }
 
 type MunicipalityListResponse = {
@@ -60,6 +64,10 @@ export default function ProfilePage() {
             municipality_name: data.municipality_name,
             barangay_id: data.barangay_id,
             barangay_name: data.barangay_name,
+            valid_id_front: data.valid_id_front,
+            valid_id_back: data.valid_id_back,
+            selfie_with_id: data.selfie_with_id,
+            proof_of_residency: data.proof_of_residency,
           })
           setMunicipalities(municipalityData.municipalities || [])
           if (data.municipality_id) {
@@ -146,6 +154,37 @@ export default function ProfilePage() {
           avatarUrl={form.profile_picture ? mediaUrl(form.profile_picture) : undefined}
           editable={false}
         />
+        {(form.valid_id_front || form.valid_id_back || form.selfie_with_id || form.proof_of_residency) && (
+          <div className="bg-white rounded-lg border p-6">
+            <h3 className="text-lg font-semibold mb-3">Verification Documents</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {form.valid_id_front && (
+                <div>
+                  <div className="text-sm font-medium mb-2">ID (Front)</div>
+                  <img src={mediaUrl(form.valid_id_front)} alt="Valid ID front" className="w-full max-h-48 object-contain border rounded" />
+                </div>
+              )}
+              {form.valid_id_back && (
+                <div>
+                  <div className="text-sm font-medium mb-2">ID (Back)</div>
+                  <img src={mediaUrl(form.valid_id_back)} alt="Valid ID back" className="w-full max-h-48 object-contain border rounded" />
+                </div>
+              )}
+              {form.selfie_with_id && (
+                <div>
+                  <div className="text-sm font-medium mb-2">Selfie with ID</div>
+                  <img src={mediaUrl(form.selfie_with_id)} alt="Selfie with ID" className="w-full max-h-48 object-contain border rounded" />
+                </div>
+              )}
+              {form.proof_of_residency && (
+                <div>
+                  <div className="text-sm font-medium mb-2">Proof of Residency</div>
+                  <img src={mediaUrl(form.proof_of_residency)} alt="Proof of residency" className="w-full max-h-48 object-contain border rounded" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         {error && <div className="rounded-md border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>}
         {ok && <div className="rounded-md border border-green-200 bg-green-50 text-green-700 px-3 py-2 text-sm">{ok}</div>}
 

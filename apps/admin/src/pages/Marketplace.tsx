@@ -55,6 +55,8 @@ export default function Marketplace() {
               type: (it.type || it.transaction_type || 'sell').toLowerCase(),
               category: it.category || 'General',
               image: (Array.isArray(it.images) && it.images[0]) || it.image_url || null,
+              images: Array.isArray(it.images) ? it.images : (it.image_url ? [it.image_url] : []),
+              description: it.description || '',
               views: it.view_count || it.views || 0,
               inquiries: it.inquiries || 0,
               posted: (it.created_at || '').slice(0, 10),
@@ -176,13 +178,13 @@ export default function Marketplace() {
         ))}
         {!loading && filtered.map((item) => (
           <div key={item.id} className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105">
-            <div className="relative aspect-square bg-gradient-to-br from-ocean-200 to-forest-200">
+            <div className="relative aspect-square bg-neutral-100">
               {item.image && (
                 <img
                   src={mediaUrl(item.image)}
                   alt={item.title}
                   loading="lazy"
-                  className="absolute inset-0 w-full h-full object-cover"
+                  className="absolute inset-0 w-full h-full object-contain"
                 />
               )}
               <div className="absolute top-3 left-3 z-10">
@@ -200,6 +202,9 @@ export default function Marketplace() {
                 <h3 className="font-bold text-neutral-900 line-clamp-2 flex-1 group-hover:text-ocean-600 transition-colors">{item.title}</h3>
               </div>
               <p className="text-xs text-neutral-600 mb-3">{item.category}</p>
+                {item.description && (
+                  <p className="text-sm text-neutral-700 mb-3 line-clamp-3 whitespace-pre-line">{item.description}</p>
+                )}
               <div className="flex items-center gap-2 mb-3 pb-3 border-b border-neutral-200">
                 {item.userPhoto ? (
                   <img src={mediaUrl(item.userPhoto)} alt="profile" className="w-6 h-6 rounded-full object-cover border" />
@@ -317,7 +322,7 @@ export default function Marketplace() {
               <div className="space-y-2">
                 <div className="aspect-[4/3] bg-neutral-100 rounded-xl overflow-hidden">
                   {Array.isArray(reviewItem.image ? [reviewItem.image] : reviewItem.images) && (reviewItem.image || reviewItem.images?.[0]) ? (
-                    <img src={mediaUrl(reviewItem.image || reviewItem.images?.[0])} alt={reviewItem.title} className="w-full h-full object-cover" />
+                    <img src={mediaUrl(reviewItem.image || reviewItem.images?.[0])} alt={reviewItem.title} className="w-full h-full object-contain" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-neutral-400">No image</div>
                   )}
@@ -325,7 +330,7 @@ export default function Marketplace() {
                 {Array.isArray(reviewItem.images) && reviewItem.images.length > 1 && (
                   <div className="flex gap-2 overflow-x-auto pt-1">
                     {reviewItem.images.slice(1).map((img: string, idx: number) => (
-                      <img key={idx} src={mediaUrl(img)} alt="thumb" className="w-16 h-16 rounded-lg object-cover border" />
+                      <img key={idx} src={mediaUrl(img)} alt="thumb" className="w-16 h-16 rounded-lg object-contain border bg-neutral-50" />
                     ))}
                   </div>
                 )}
@@ -337,6 +342,12 @@ export default function Marketplace() {
                 <p className="font-semibold">{reviewItem.title}</p>
                 <p className="text-xs text-neutral-500 mt-3">Category</p>
                 <p className="font-medium">{reviewItem.category}</p>
+                {reviewItem.description && (
+                  <>
+                    <p className="text-xs text-neutral-500 mt-3">Description</p>
+                    <p className="text-sm whitespace-pre-line text-neutral-700">{reviewItem.description}</p>
+                  </>
+                )}
                 <p className="text-xs text-neutral-500 mt-3">Posted</p>
                 <p className="font-medium">{reviewItem.posted}</p>
               </div>

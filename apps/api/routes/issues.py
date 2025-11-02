@@ -152,6 +152,7 @@ def create_issue():
             issue_number=issue_number,
             user_id=user_id,
             category_id=category.id,
+            category_label=category.name,
             title=data['title'],
             description=data['description'],
             municipality_id=municipality_id,

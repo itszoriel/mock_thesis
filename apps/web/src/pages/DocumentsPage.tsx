@@ -186,7 +186,7 @@ export default function DocumentsPage() {
             {step === 1 && (
               <div>
                 <h2 className="text-xl font-bold mb-4">Select Document Type</h2>
-                <div className="grid grid-cols-1 xs:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {types.map((t) => (
                     <button
                       key={t.id}
@@ -231,7 +231,7 @@ export default function DocumentsPage() {
             {step === 2 && (
               <div>
                 <h2 className="text-xl font-bold mb-4">Request Details</h2>
-                <div className="grid grid-cols-1 xs:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Municipality</label>
                     <input className="input-field" value={selectedMunicipality?.name || ''} disabled title={(user as any)?.municipality_id && selectedMunicipality?.id && (user as any).municipality_id !== selectedMunicipality.id ? 'Viewing other municipality. Submissions go to your registered municipality.' : ''} />
@@ -312,12 +312,12 @@ export default function DocumentsPage() {
                     </div>
                   )}
                 </div>
-                <div className="mt-6 flex flex-col xs:flex-row gap-3 xs:justify-between">
-                  <button className="btn btn-secondary w-full xs:w-auto inline-flex items-center gap-2" onClick={() => setStep(1)}>
+                <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-between">
+                  <button className="btn btn-secondary w-full sm:w-auto inline-flex items-center gap-2" onClick={() => setStep(1)}>
                     <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                     <span>Back</span>
                   </button>
-                  <button className="btn btn-primary w-full xs:w-auto inline-flex items-center gap-2" onClick={() => setStep(3)} disabled={!canSubmit || isMismatch}>
+                  <button className="btn btn-primary w-full sm:w-auto inline-flex items-center gap-2" onClick={() => setStep(3)} disabled={!canSubmit || isMismatch}>
                     <span>Continue</span>
                     <ArrowRight className="w-4 h-4" aria-hidden="true" />
                   </button>
@@ -357,8 +357,8 @@ export default function DocumentsPage() {
                   <input type="checkbox" className="mt-1" checked={consent} onChange={(e)=>setConsent(e.target.checked)} />
                   <span>I confirm the information provided is true and I consent to its processing for document issuance.</span>
                 </label>
-                <div className="mt-6 flex flex-col xs:flex-row gap-3 xs:justify-between items-stretch xs:items-center">
-                  <button className="btn btn-secondary w-full xs:w-auto inline-flex items-center gap-2" onClick={() => setStep(2)}>
+                <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-between items-stretch sm:items-center">
+                  <button className="btn btn-secondary w-full sm:w-auto inline-flex items-center gap-2" onClick={() => setStep(2)}>
                     <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                     <span>Back</span>
                   </button>
@@ -409,7 +409,7 @@ export default function DocumentsPage() {
                     }}
                     tooltip="Login required to use this feature"
                   >
-                    <button className="btn btn-primary w-full xs:w-auto" disabled={!canSubmit || submitting || isMismatch || !consent} title={isMismatch ? 'Requests are limited to your registered municipality' : undefined}>
+                    <button className="btn btn-primary w-full sm:w-auto" disabled={!canSubmit || submitting || isMismatch || !consent} title={isMismatch ? 'Requests are limited to your registered municipality' : undefined}>
                       {submitting ? 'Submitting...' : 'Submit Request'}
                     </button>
                   </GatedAction>

@@ -15,14 +15,28 @@ def generate_qr_code_data(document_request):
     Returns a simple URL string that can be scanned and opened directly.
     Format: http://localhost:5000/verify/REQ-2024-001
     """
-    base_url = (
-        os.getenv('VERIFICATION_BASE_URL')
-        or os.getenv('WEB_BASE_URL')
-        or (current_app.config.get('WEB_BASE_URL') if current_app else None)
-        or 'http://localhost:5173'
+    def _first(*candidates):
+        for candidate in candidates:
+            if candidate and str(candidate).strip():
+                return str(candidate).strip()
+        return None
+
+    cfg = current_app.config if current_app else {}
+    base_url = _first(
+        os.getenv('QR_BASE_URL'),
+        cfg.get('QR_BASE_URL') if cfg else None,
+        os.getenv('VERIFICATION_BASE_URL'),
+        os.getenv('WEB_BASE_URL'),
+        cfg.get('WEB_BASE_URL') if cfg else None,
+        'https://munlink-web.onrender.com/verify',
     )
+
+    base_url = base_url.rstrip('/')
+    if not base_url.lower().endswith('/verify'):
+        base_url = f"{base_url}/verify"
+
     # Return simple URL string, not JSON object
-    return f"{base_url}/verify/{document_request.request_number}"
+    return f"{base_url}/{document_request.request_number}"
 
 
 def generate_qr_code_image(qr_data, size=300):

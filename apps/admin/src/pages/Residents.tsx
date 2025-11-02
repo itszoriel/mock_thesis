@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { handleApiError, userApi, mediaUrl, transferAdminApi, showToast, municipalitiesApi } from '../lib/api'
+import { handleApiError, userApi, mediaUrl, transferAdminApi, showToast, municipalitiesApi, adminApi } from '../lib/api'
 import { useLocation } from 'react-router-dom'
 import { useAdminStore } from '../lib/store'
 import type { AdminState } from '../lib/store'
@@ -403,15 +403,19 @@ export default function Residents() {
                         className={`icon-btn ${r.status==='suspended' ? 'success' : 'danger'}`}
                         onClick={async (e: React.MouseEvent) => {
                           e.stopPropagation()
-                          const id = String(r.id)
+                          const id = Number(r.id)
                           try {
-                            setActionLoading(id)
-                            const res = await fetch(`${(import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:5000'}/api/admin/users/${id}/suspend`, {
-                              method: 'POST',
-                              headers: { 'Authorization': `Bearer ${useAdminStore.getState().accessToken}` }
-                            })
-                            const ok = res.ok
-                            if (ok) updateRowStatus(id, r.status==='suspended' ? 'verified' : 'suspended')
+                            setActionLoading(String(id))
+                            const res = await adminApi.suspendResident(id)
+                            const updated = (res as any)?.user || (res as any)?.data?.user || (res as any)
+                            const nextStatus: 'verified' | 'pending' | 'suspended' = updated?.is_active === false
+                              ? 'suspended'
+                              : (updated?.admin_verified ? 'verified' : 'pending')
+                            updateRowStatus(String(id), nextStatus)
+                            showToast(nextStatus === 'suspended' ? 'Resident suspended' : 'Resident reactivated', 'success')
+                          } catch (err: any) {
+                            const msg = handleApiError(err as any) || 'Failed to update resident status'
+                            showToast(msg, 'error')
                           } finally {
                             setActionLoading(null)
                           }

@@ -8,6 +8,7 @@ import Modal from '@/components/ui/Modal'
 type MyItem = {
   id: number
   title: string
+  description?: string
   status: string
   images?: string[]
   transaction_type: 'donate' | 'lend' | 'sell'
@@ -109,7 +110,7 @@ export default function MyMarketplacePage() {
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="skeleton-card">
               <div className="aspect-[4/3] skeleton-image" />
@@ -121,15 +122,18 @@ export default function MyMarketplacePage() {
           ))}
         </div>
       ) : tab === 'items' ? (
-        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {items.map((it) => (
             <div key={it.id} className="card">
               <div className="w-full aspect-[4/3] bg-gray-100 rounded-lg mb-3 overflow-hidden">
                 {it.images?.[0] && (
-                  <img src={mediaUrl(it.images[0])} alt={it.title} loading="lazy" className="w-full h-full object-cover" />
+                  <img src={mediaUrl(it.images[0])} alt={it.title} loading="lazy" className="w-full h-full object-contain" />
                 )}
               </div>
               <h3 className="font-semibold mb-1 truncate">{it.title}</h3>
+              {it.description && (
+                <p className="text-sm text-gray-600 mb-2 line-clamp-2 whitespace-pre-line">{it.description}</p>
+              )}
               <div className="text-xs text-gray-600 mb-2 capitalize">{it.transaction_type}{it.transaction_type==='sell'&& it.price?` • ₱${Number(it.price).toLocaleString()}`:''}</div>
               <div className="flex items-center justify-between text-xs mb-3">
                 <span className={`px-2 py-0.5 rounded-full ${it.status==='available'?'bg-emerald-50 text-emerald-700':'bg-amber-50 text-amber-700'}`}>{it.status}</span>
@@ -142,7 +146,7 @@ export default function MyMarketplacePage() {
                     setEditItem(it)
                     setEditForm({
                       title: it.title,
-                      description: '',
+                      description: it.description || '',
                       price: it.price !== undefined ? String(it.price) : '',
                       images: Array.isArray(it.images) ? [...it.images] : [],
                     })
@@ -181,12 +185,12 @@ export default function MyMarketplacePage() {
       ) : (
         <div className="space-y-3">
           {txs.map((t) => (
-            <div key={`${t.id}-${t.as || 'role'}`} className="flex items-center justify-between rounded-lg border p-3">
-              <div className="min-w-0">
+            <div key={`${t.id}-${t.as || 'role'}`} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3 sm:flex-nowrap sm:items-center">
+              <div className="min-w-0 flex-1">
                 <div className="font-medium capitalize truncate">{t.transaction_type}</div>
                 <div className="text-xs text-gray-600">{(t.created_at || '').slice(0,10)} • {t.as === 'seller' ? 'You are the seller' : 'You are the buyer'}</div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
                 <span className={`px-2 py-1 text-xs rounded-full ${t.status==='accepted'?'bg-emerald-50 text-emerald-700': (t.status==='awaiting_buyer'?'bg-blue-50 text-blue-700':'bg-amber-50 text-amber-700')}`}>{t.status}</span>
                 {(t.status === 'accepted' || t.status === 'awaiting_buyer') && t.pickup_at && (
                   <span className="text-xs text-gray-600">Pickup: {new Date(t.pickup_at).toLocaleString()}</span>

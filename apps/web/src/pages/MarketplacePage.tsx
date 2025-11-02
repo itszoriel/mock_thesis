@@ -8,11 +8,13 @@ import { useAppStore } from '@/lib/store'
 type Item = {
   id: number
   title: string
+  description?: string
   category: string
   transaction_type: 'donate' | 'lend' | 'sell'
   price?: number
   images?: string[]
   municipality_id?: number
+  municipality_name?: string
 }
 
 const CATEGORIES = ['All', 'Electronics','Furniture','Clothing','Home & Garden','Vehicles','Services','Other']
@@ -100,9 +102,9 @@ export default function MarketplacePage() {
 
   return (
     <div className="container-responsive py-12">
-      <div className="flex flex-col xs:flex-row xs:justify-between xs:items-center gap-3 mb-8">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-8">
         <h1 className="text-fluid-3xl font-serif font-semibold">Marketplace</h1>
-        <div className="w-full xs:w-auto min-w-[140px]">
+        <div className="w-full sm:w-auto min-w-[140px]">
           <GatedAction
             required="fullyVerified"
             onAllowed={() => {
@@ -117,12 +119,12 @@ export default function MarketplacePage() {
               setOpen(true)
             }}
           >
-            <button className="btn btn-primary w-full xs:w-auto" disabled={isViewingMismatch} title={isViewingMismatch ? 'Posting is limited to your municipality' : undefined}>+ Post Item</button>
+            <button className="btn btn-primary w-full sm:w-auto" disabled={isViewingMismatch} title={isViewingMismatch ? 'Posting is limited to your municipality' : undefined}>+ Post Item</button>
           </GatedAction>
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 xs:grid-cols-2 gap-3">
+      <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <select className="input-field" value={category} onChange={(e) => setCategory(e.target.value)}>
           {CATEGORIES.map((c) => (
             <option key={c} value={c}>{c}</option>
@@ -150,7 +152,7 @@ export default function MarketplacePage() {
       )}
 
       {loading ? (
-        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="skeleton-card">
               <div className="aspect-[4/3] skeleton-image" />
@@ -162,13 +164,13 @@ export default function MarketplacePage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {items.map((item) => (
             <div key={item.id} className="card">
-              <div className="w-full aspect-[4/3] bg-gray-200 rounded-lg mb-4 overflow-hidden relative">
+              <div className="w-full aspect-[4/3] bg-gray-100 rounded-lg mb-4 overflow-hidden relative">
                 <Link to={`/marketplace/${item.id}`} aria-label={`View ${item.title}`} className="absolute inset-0">
                   {item.images?.[0] ? (
-                    <img src={mediaUrl(item.images[0])} alt={item.title} loading="lazy" className="responsive-img h-full" />
+                    <img src={mediaUrl(item.images[0])} alt={item.title} loading="lazy" className="w-full h-full object-contain" />
                   ) : (
                     <div className="w-full h-full" />
                   )}
@@ -189,8 +191,11 @@ export default function MarketplacePage() {
                   <Link to={`/marketplace/${item.id}`} className="px-2.5 py-1 rounded-lg text-xs bg-white/90 hover:bg-white shadow">View</Link>
                 </div>
               </div>
-              <h3 className="font-bold mb-2"><Link to={`/marketplace/${item.id}`} className="hover:underline">{item.title}</Link></h3>
-              <p className="text-sm text-gray-600 mb-2">Category: {item.category}</p>
+              <h3 className="font-bold mb-1"><Link to={`/marketplace/${item.id}`} className="hover:underline">{item.title}</Link></h3>
+              <p className="text-xs text-gray-500 mb-2">Category: {item.category}</p>
+              {item.description && (
+                <p className="text-sm text-gray-700 mb-3 line-clamp-2 whitespace-pre-line">{item.description}</p>
+              )}
               {(() => {
                 const u = (item as any).user
                 const photo = u?.profile_picture

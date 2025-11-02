@@ -89,7 +89,7 @@ function App() {
           <Route path="documents/requests/:id" element={<LegacyDocRedirect />} />
           <Route path="dashboard/requests/:id" element={<ProtectedRoute allow={["resident"]}><DocumentRequestPage /></ProtectedRoute>} />
           <Route path="issues" element={<ProtectedRoute allow={["resident","admin","public"]}><IssuesPage /></ProtectedRoute>} />
-          <Route path="benefits" element={<ProtectedRoute allow={["resident","admin","public"]}><BenefitsPage /></ProtectedRoute>} />
+          <Route path="benefits" element={<ProtectedRoute allow={["resident"]}><BenefitsPage /></ProtectedRoute>} />
           <Route path="benefits/history" element={<ProtectedRoute allow={["resident"]}><ProgramHistoryPage /></ProtectedRoute>} />
           <Route path="verify/:requestNumber" element={<VerifyDocumentPage />} />
         </Route>

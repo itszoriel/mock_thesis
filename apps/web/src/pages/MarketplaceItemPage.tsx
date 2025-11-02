@@ -53,7 +53,7 @@ export default function MarketplaceItemPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="relative w-full aspect-[4/3] bg-neutral-100 rounded-xl overflow-hidden">
             {images[safeIdx] ? (
-              <img src={mediaUrl(images[safeIdx])} alt={item.title} className="w-full h-full object-cover" />
+              <img src={mediaUrl(images[safeIdx])} alt={item.title} className="w-full h-full object-contain" />
             ) : (
               <div className="w-full h-full" />)
             }
@@ -90,10 +90,10 @@ export default function MarketplaceItemPage() {
                   key={`${img}-${i}`}
                   type="button"
                   aria-label={`Image ${i + 1}`}
-                  className={`h-16 w-16 flex-shrink-0 rounded border ${i === safeIdx ? 'ring-2 ring-ocean-600' : ''}`}
+                  className={`h-16 w-16 flex-shrink-0 rounded border bg-white ${i === safeIdx ? 'ring-2 ring-ocean-600' : ''}`}
                   onClick={() => setIdx(i)}
                 >
-                  <img src={mediaUrl(img)} alt="thumb" className="w-full h-full object-cover rounded" />
+                  <img src={mediaUrl(img)} alt="thumb" className="w-full h-full object-contain rounded" />
                 </button>
               ))}
             </div>
