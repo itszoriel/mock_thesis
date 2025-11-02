@@ -6,6 +6,7 @@ try:
     from apps.api import db
     from apps.api.models.document import DocumentType, DocumentRequest
     from apps.api.models.user import User
+    from apps.api.models.municipality import Municipality
     from apps.api.utils import (
         validate_required_fields,
         ValidationError,
@@ -17,6 +18,7 @@ except ImportError:
     from __init__ import db
     from models.document import DocumentType, DocumentRequest
     from models.user import User
+    from models.municipality import Municipality
     from utils import (
         validate_required_fields,
         ValidationError,
@@ -56,7 +58,13 @@ def create_document_request():
         if not user:
             return jsonify({'error': 'User not found'}), 404
 
-        data = request.get_json()
+        is_multipart = (request.content_type or '').lower().startswith('multipart/form-data')
+        if is_multipart:
+            form = request.form or {}
+            data = {key: form.get(key) for key in form.keys()}
+        else:
+            data = request.get_json(silent=True) or {}
+
         required = ['document_type_id', 'municipality_id', 'delivery_method', 'purpose']
         validate_required_fields(data, required)
 
@@ -78,6 +86,22 @@ def create_document_request():
         dt = DocumentType.query.get(document_type_id)
         if not dt or not dt.is_active:
             return jsonify({'error': 'Selected document type is not available'}), 400
+
+        requirements = []
+        if isinstance(dt.requirements, list):
+            requirements = [str(item).strip() for item in dt.requirements if str(item).strip()]
+        requirement_count = min(len(requirements), 5)
+
+        uploaded_requirement_files = []
+        additional_files = []
+        if is_multipart:
+            primary = request.files.getlist('requirement_files')
+            alternate = request.files.getlist('requirements[]')
+            uploaded_requirement_files = [f for f in (primary or alternate or []) if getattr(f, 'filename', '')]
+            additional_files = [f for f in request.files.getlist('supporting_files') if getattr(f, 'filename', '')]
+
+        if requirement_count > 0 and len(uploaded_requirement_files) < requirement_count:
+            return jsonify({'error': 'Missing required attachments', 'details': f'{requirement_count} files required; received {len(uploaded_requirement_files)}'}), 400
 
         # Digital is allowed only when the type supports digital AND the fee is zero
         requested_method = (data.get('delivery_method') or '').lower()
@@ -166,6 +190,24 @@ def create_document_request():
 
         db.session.add(req)
         db.session.commit()
+
+        if (uploaded_requirement_files or additional_files):
+            municipality = Municipality.query.get(req.municipality_id)
+            municipality_slug = municipality.slug if municipality else 'unknown'
+            stored_paths = []
+            try:
+                for upload in uploaded_requirement_files + additional_files:
+                    path = save_document_request_file(upload, req.id, municipality_slug)
+                    stored_paths.append(path)
+                if stored_paths:
+                    existing = req.supporting_documents or []
+                    req.supporting_documents = existing + stored_paths
+                    db.session.commit()
+            except Exception as file_exc:
+                db.session.rollback()
+                db.session.delete(req)
+                db.session.commit()
+                return jsonify({'error': 'Failed to save attachments', 'details': str(file_exc)}), 500
 
         return jsonify({'message': 'Request created successfully', 'request': req.to_dict()}), 201
 

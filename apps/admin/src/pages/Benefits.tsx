@@ -46,6 +46,7 @@ export default function Benefits() {
           status: (p.is_active === false ? 'archived' : 'active'),
           icon: '📋',
           color: 'ocean',
+          required_documents: p.required_documents || p.requirements || [],
         }))
         if (mounted) {
           setPrograms(mapped)
@@ -119,7 +120,8 @@ export default function Benefits() {
           is_active: created.is_active !== false,
           status: created.is_active ? 'active' : 'archived',
           icon: '📋',
-          color: 'ocean',
+            color: 'ocean',
+            required_documents: created.required_documents || [],
         }, ...prev])
         setActiveCount((c) => c + (created.is_active ? 1 : 0))
       }
@@ -288,13 +290,34 @@ export default function Benefits() {
       {viewProgram && (
         <Modal open={true} onOpenChange={(o)=>{ if(!o) setViewProgram(null) }} title={viewProgram._edit ? 'Edit Program' : 'Program Details'}>
           {viewProgram._edit ? (
-            <ProgramForm initial={{ name: viewProgram.title || viewProgram.name, code: viewProgram.code || '', description: viewProgram.description || '', program_type: viewProgram.program_type || 'general', duration_days: viewProgram.duration_days ?? '' }} onCancel={()=> setViewProgram(null)} onSubmit={async (data)=>{ try { setActionLoading(viewProgram.id); await benefitsAdminApi.updateProgram(viewProgram.id, data); setPrograms((prev)=> prev.map(p=> p.id===viewProgram.id ? { ...p, title: data.name || p.title, description: (data.description ?? p.description), duration_days: (data.duration_days ?? p.duration_days) } : p)); setViewProgram(null) } catch(e:any){ setError(handleApiError(e)) } finally { setActionLoading(null) } }} submitting={actionLoading===viewProgram.id} />
+            <ProgramForm
+              key={viewProgram.id || 'edit'}
+              initial={{
+                name: viewProgram.title || viewProgram.name,
+                code: viewProgram.code || '',
+                description: viewProgram.description || '',
+                program_type: viewProgram.program_type || 'general',
+                duration_days: viewProgram.duration_days ?? '',
+                required_documents: viewProgram.required_documents || [],
+              }}
+              onCancel={()=> setViewProgram(null)}
+              onSubmit={async (data)=>{ try { setActionLoading(viewProgram.id); await benefitsAdminApi.updateProgram(viewProgram.id, data); setPrograms((prev)=> prev.map(p=> p.id===viewProgram.id ? { ...p, title: data.name || p.title, description: (data.description ?? p.description), duration_days: (data.duration_days ?? p.duration_days), required_documents: data.required_documents ?? p.required_documents } : p)); setViewProgram(null) } catch(e:any){ setError(handleApiError(e)) } finally { setActionLoading(null) } }} submitting={actionLoading===viewProgram.id} />
           ) : (
             <div className="space-y-2">
               <p className="text-sm text-neutral-700"><span className="font-medium">Name:</span> {viewProgram.name || viewProgram.title}</p>
               <p className="text-sm text-neutral-700"><span className="font-medium">Type:</span> {viewProgram.program_type || '—'}</p>
               {Number(viewProgram.duration_days) > 0 && (<p className="text-sm text-neutral-700"><span className="font-medium">Duration:</span> {viewProgram.duration_days} days</p>)}
               <p className="text-sm text-neutral-700 whitespace-pre-wrap"><span className="font-medium">Description:</span> {viewProgram.description}</p>
+              {Array.isArray(viewProgram.required_documents) && viewProgram.required_documents.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-neutral-700">Requirements</p>
+                  <ul className="list-disc list-inside text-sm text-neutral-600">
+                    {viewProgram.required_documents.map((req: string, idx: number) => (
+                      <li key={idx}>{req}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </Modal>
@@ -331,7 +354,7 @@ export default function Benefits() {
       {/* Create Modal */}
       {createOpen && (
         <Modal open={true} onOpenChange={(o)=>{ if(!o) setCreateOpen(false) }} title="Create Program" className="" >
-          <ProgramForm initial={{ name: '', code: '', description: '', program_type: 'general', duration_days: '' }} onCancel={closeCreate} onSubmit={submitCreate} submitting={actionLoading===-1} />
+          <ProgramForm initial={{ name: '', code: '', description: '', program_type: 'general', duration_days: '', required_documents: [] }} onCancel={closeCreate} onSubmit={submitCreate} submitting={actionLoading===-1} key="create" />
         </Modal>
       )}
     </div>
@@ -341,12 +364,56 @@ export default function Benefits() {
 
 
 function ProgramForm({ initial, onCancel, onSubmit, submitting }: { initial: any; onCancel: ()=>void; onSubmit: (data:any)=>void; submitting: boolean }) {
-  const [form, setForm] = useState<any>(initial)
+  const defaults = {
+    name: '',
+    code: '',
+    description: '',
+    program_type: 'general',
+    duration_days: '',
+    required_documents: [] as string[],
+  }
+  const merged = { ...defaults, ...(initial || {}) }
+  const [form, setForm] = useState<any>(merged)
+  const [requirements, setRequirements] = useState<string[]>(() => {
+    const list = Array.isArray(merged.required_documents) ? merged.required_documents : []
+    const filtered = list.filter((item: string) => !!item).slice(0, 5)
+    return filtered.length > 0 ? filtered : ['']
+  })
+
+  const updateRequirement = (index: number, value: string) => {
+    setRequirements((prev) => {
+      const next = [...prev]
+      next[index] = value
+      return next
+    })
+  }
+
+  const addRequirement = () => {
+    setRequirements((prev) => (prev.length >= 5 ? prev : [...prev, '']))
+  }
+
+  const removeRequirement = (index: number) => {
+    setRequirements((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      return next.length === 0 ? [''] : next
+    })
+  }
+
   const disabled = !(form.name && form.code && form.description)
+
   return (
     <form
       aria-label="Program form"
-      onSubmit={(e)=>{ e.preventDefault(); if(!disabled) onSubmit(form) }}
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (disabled || submitting) return
+        const payload = {
+          ...form,
+          duration_days: form.duration_days === '' ? undefined : Number(form.duration_days),
+          required_documents: requirements.map((r) => String(r || '').trim()).filter(Boolean).slice(0, 5),
+        }
+        onSubmit(payload)
+      }}
       className="space-y-3"
     >
       <div>
@@ -373,10 +440,41 @@ function ProgramForm({ initial, onCancel, onSubmit, submitting }: { initial: any
       </div>
       <div>
         <label className="block text-sm font-medium text-neutral-700 mb-1" htmlFor="program-duration">Duration (days)</label>
-        <input id="program-duration" type="number" min={0} placeholder="e.g., 30" value={form.duration_days}
+        <input
+          id="program-duration"
+          type="number"
+          min={0}
+          placeholder="e.g., 30"
+          value={form.duration_days}
           onChange={(e)=> setForm((p:any)=> ({ ...p, duration_days: e.target.value === '' ? '' : Number(e.target.value) }))}
-          className="w-full px-3 py-2 border border-neutral-300 rounded-md" />
+          className="w-full px-3 py-2 border border-neutral-300 rounded-md"
+        />
         <p className="text-xs text-neutral-500 mt-1">Leave blank to keep the program active until marked Done.</p>
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-sm font-medium text-neutral-700">Requirements (max 5)</label>
+          <button type="button" className="px-2 py-1 text-xs bg-neutral-100 hover:bg-neutral-200 rounded" onClick={addRequirement} disabled={requirements.length >= 5}>Add</button>
+        </div>
+        <div className="space-y-2">
+          {requirements.map((req, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <input
+                value={req}
+                onChange={(e) => updateRequirement(index, e.target.value)}
+                className="flex-1 border border-neutral-300 rounded-md px-3 py-2 text-sm"
+                placeholder="Requirement description"
+              />
+              <button
+                type="button"
+                className="px-2 py-1 text-xs bg-rose-100 hover:bg-rose-200 text-rose-700 rounded"
+                onClick={() => removeRequirement(index)}
+                disabled={requirements.length <= 1 && !requirements[index]}
+              >Remove</button>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-neutral-500 mt-1">Residents must upload each listed requirement when applying.</p>
       </div>
       <div className="flex items-center justify-end gap-2 pt-2">
         <Button variant="secondary" size="sm" onClick={onCancel} type="button">Cancel</Button>

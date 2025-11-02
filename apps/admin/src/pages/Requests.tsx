@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Modal } from '@munlink/ui'
 import { adminApi, handleApiError, documentsAdminApi, mediaUrl, showToast, auditAdminApi } from '../lib/api'
 import { ClipboardList, Hourglass, Cog, CheckCircle, PartyPopper, Smartphone, Package as PackageIcon, Search } from 'lucide-react'
 
@@ -11,6 +12,12 @@ export default function Requests() {
   const [rows, setRows] = useState<any[]>([])
   const [stats, setStats] = useState<{ total_requests: number; pending_requests: number; processing_requests: number; ready_requests: number; completed_requests: number } | null>(null)
   const [deliveryFilter, setDeliveryFilter] = useState<'all' | 'digital' | 'pickup'>('all')
+  const [docTypeModalOpen, setDocTypeModalOpen] = useState(false)
+  const [docTypes, setDocTypes] = useState<any[]>([])
+  const [loadingDocTypes, setLoadingDocTypes] = useState(false)
+  const [editingDocType, setEditingDocType] = useState<any | null>(null)
+  const [docTypeSubmitting, setDocTypeSubmitting] = useState(false)
+  const [docTypeError, setDocTypeError] = useState<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -152,6 +159,69 @@ export default function Requests() {
       setRows(mapped)
     } catch (e: any) {
       setError(handleApiError(e))
+    }
+  }
+
+  const loadDocTypes = async () => {
+    setLoadingDocTypes(true)
+    try {
+      setDocTypeError(null)
+      const res = await documentsAdminApi.listTypes()
+      const types = (res as any)?.types || (res as any)?.data?.types || []
+      setDocTypes(Array.isArray(types) ? types : [])
+    } catch (e: any) {
+      setDocTypes([])
+      setDocTypeError(handleApiError(e))
+    } finally {
+      setLoadingDocTypes(false)
+    }
+  }
+
+  const openDocTypeManager = async () => {
+    setDocTypeModalOpen(true)
+    setEditingDocType(null)
+    await loadDocTypes()
+  }
+
+  const closeDocTypeManager = () => {
+    setDocTypeModalOpen(false)
+    setEditingDocType(null)
+    setDocTypeError(null)
+  }
+
+  const handleSaveDocType = async (formData: any) => {
+    try {
+      setDocTypeSubmitting(true)
+      setDocTypeError(null)
+      if (editingDocType && editingDocType.id) {
+        await documentsAdminApi.updateType(editingDocType.id, formData)
+        showToast('Document type updated', 'success')
+      } else {
+        await documentsAdminApi.createType(formData)
+        showToast('Document type created', 'success')
+      }
+      await loadDocTypes()
+      setEditingDocType(null)
+    } catch (e: any) {
+      setDocTypeError(handleApiError(e))
+    } finally {
+      setDocTypeSubmitting(false)
+    }
+  }
+
+  const handleDeleteDocType = async (id: number) => {
+    const confirm = window.confirm('Delete this document type? This cannot be undone.')
+    if (!confirm) return
+    try {
+      setDocTypeSubmitting(true)
+      setDocTypeError(null)
+      await documentsAdminApi.deleteType(id)
+      showToast('Document type deleted', 'success')
+      await loadDocTypes()
+    } catch (e: any) {
+      setDocTypeError(handleApiError(e))
+    } finally {
+      setDocTypeSubmitting(false)
     }
   }
 
@@ -329,6 +399,9 @@ export default function Requests() {
             </select>
             <button className="px-4 py-2 bg-white border border-neutral-200 hover:border-ocean-500 rounded-lg text-sm font-medium transition-all flex items-center gap-2" onClick={()=> setVerifyOpen(true)}>
               <Search className="w-4 h-4" aria-hidden="true" /> Verify Ticket
+            </button>
+            <button className="px-4 py-2 bg-white border border-neutral-200 hover:border-ocean-500 rounded-lg text-sm font-medium transition-all" onClick={openDocTypeManager}>
+              Manage Document Types
             </button>
             <button className="px-4 py-2 bg-white border border-neutral-200 hover:border-ocean-500 rounded-lg text-sm font-medium transition-all flex items-center gap-2">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
@@ -522,6 +595,64 @@ export default function Requests() {
           ))}
         </div>
       </div>
+      <Modal open={docTypeModalOpen} onOpenChange={(o) => { if (!o) closeDocTypeManager() }} title="Manage Document Types">
+        <div className="space-y-4">
+          {docTypeError && (
+            <div className="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded px-3 py-2">{docTypeError}</div>
+          )}
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold">Existing Types</h3>
+            <button
+              className="px-3 py-1.5 rounded bg-ocean-600 hover:bg-ocean-700 text-white text-sm font-medium"
+              onClick={() => setEditingDocType({ id: null, name: '', code: '', authority_level: 'municipal', description: '', fee: 0, processing_days: 3, supports_physical: true, supports_digital: true, is_active: true, requirements: [] })}
+              disabled={docTypeSubmitting}
+            >New Type</button>
+          </div>
+          {loadingDocTypes ? (
+            <div className="text-sm text-neutral-600">Loading…</div>
+          ) : docTypes.length === 0 ? (
+            <div className="text-sm text-neutral-600">No document types yet.</div>
+          ) : (
+            <div className="space-y-2">
+              {docTypes.map((t: any) => (
+                <div key={t.id} className="border border-neutral-200 rounded-lg p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-neutral-900 truncate">{t.name}</div>
+                    <div className="text-xs text-neutral-500 uppercase">{t.authority_level}</div>
+                    <div className="text-xs text-neutral-600">Processing: {t.processing_days} day(s) • Fee: ₱{Number(t.fee || 0).toFixed(2)}</div>
+                    {Array.isArray(t.requirements) && t.requirements.length > 0 && (
+                      <div className="mt-1 text-xs text-neutral-600">Requirements: {t.requirements.join(', ')}</div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="px-2.5 py-1 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs"
+                      onClick={() => setEditingDocType({ ...t })}
+                      disabled={docTypeSubmitting}
+                    >Edit</button>
+                    <button
+                      className="px-2.5 py-1 rounded bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs"
+                      onClick={() => handleDeleteDocType(t.id)}
+                      disabled={docTypeSubmitting}
+                    >Delete</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {editingDocType !== null && (
+            <div className="border-t border-neutral-200 pt-4 mt-4">
+              <DocumentTypeForm
+                key={editingDocType?.id ?? 'new'}
+                initial={editingDocType}
+                submitting={docTypeSubmitting}
+                onCancel={() => setEditingDocType(null)}
+                onSubmit={handleSaveDocType}
+              />
+            </div>
+          )}
+        </div>
+      </Modal>
       {/* Verify Ticket Modal */}
       {verifyOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" role="dialog" aria-modal="true" onKeyDown={(e)=>{ if (e.key==='Escape') setVerifyOpen(false)}}>
@@ -721,4 +852,198 @@ export default function Requests() {
   )
 }
 
+
+
+type DocumentTypeFormProps = {
+  initial: any
+  submitting: boolean
+  onSubmit: (payload: any) => void
+  onCancel: () => void
+}
+
+function DocumentTypeForm({ initial, submitting, onSubmit, onCancel }: DocumentTypeFormProps) {
+  const defaults = {
+    name: '',
+    code: '',
+    authority_level: 'municipal',
+    description: '',
+    fee: 0,
+    processing_days: 3,
+    supports_physical: true,
+    supports_digital: true,
+    is_active: true,
+    requirements: [],
+  }
+
+  const initialData = { ...defaults, ...(initial || {}) }
+  const [form, setForm] = useState<any>(initialData)
+  const initialRequirements = Array.isArray(initialData.requirements) && initialData.requirements.length > 0
+    ? initialData.requirements.slice(0, 5)
+    : ['']
+  const [requirements, setRequirements] = useState<string[]>(initialRequirements)
+
+  const updateRequirement = (index: number, value: string) => {
+    setRequirements((prev) => {
+      const next = [...prev]
+      next[index] = value
+      return next
+    })
+  }
+
+  const addRequirement = () => {
+    setRequirements((prev) => (prev.length >= 5 ? prev : [...prev, '']))
+  }
+
+  const removeRequirement = (index: number) => {
+    setRequirements((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      return next.length === 0 ? [''] : next
+    })
+  }
+
+  const disabled = !(form.name && form.code)
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (disabled || submitting) return
+        const payload = {
+          name: String(form.name || '').trim(),
+          code: String(form.code || '').trim(),
+          authority_level: String(form.authority_level || 'municipal').toLowerCase(),
+          description: form.description || '',
+          fee: form.fee === '' ? 0 : Number(form.fee),
+          processing_days: form.processing_days === '' ? 3 : Number(form.processing_days),
+          supports_physical: !!form.supports_physical,
+          supports_digital: !!form.supports_digital,
+          is_active: !!form.is_active,
+          requirements: requirements.map((r) => String(r || '').trim()).filter(Boolean),
+        }
+        onSubmit(payload)
+      }}
+      className="space-y-3"
+    >
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Name</label>
+          <input
+            value={form.name}
+            onChange={(e) => setForm((prev: any) => ({ ...prev, name: e.target.value }))}
+            className="w-full border border-neutral-300 rounded-md px-3 py-2 text-sm"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Code</label>
+          <input
+            value={form.code}
+            onChange={(e) => setForm((prev: any) => ({ ...prev, code: e.target.value }))}
+            className="w-full border border-neutral-300 rounded-md px-3 py-2 text-sm"
+            required
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Authority Level</label>
+          <select
+            value={form.authority_level}
+            onChange={(e) => setForm((prev: any) => ({ ...prev, authority_level: e.target.value }))}
+            className="w-full border border-neutral-300 rounded-md px-3 py-2 text-sm"
+          >
+            <option value="municipal">Municipal</option>
+            <option value="barangay">Barangay</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Processing Days</label>
+          <input
+            type="number"
+            min={1}
+            value={form.processing_days}
+            onChange={(e) => setForm((prev: any) => ({ ...prev, processing_days: e.target.value === '' ? '' : Number(e.target.value) }))}
+            className="w-full border border-neutral-300 rounded-md px-3 py-2 text-sm"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-neutral-700 mb-1">Description</label>
+        <textarea
+          value={form.description}
+          onChange={(e) => setForm((prev: any) => ({ ...prev, description: e.target.value }))}
+          className="w-full border border-neutral-300 rounded-md px-3 py-2 text-sm"
+          rows={3}
+        />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-sm font-medium text-neutral-700 mb-1">Fee (₱)</label>
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            value={form.fee}
+            onChange={(e) => setForm((prev: any) => ({ ...prev, fee: e.target.value === '' ? '' : Number(e.target.value) }))}
+            className="w-full border border-neutral-300 rounded-md px-3 py-2 text-sm"
+          />
+        </div>
+        <label className="flex items-center gap-2 text-sm text-neutral-700">
+          <input
+            type="checkbox"
+            checked={form.supports_physical}
+            onChange={(e) => setForm((prev: any) => ({ ...prev, supports_physical: e.target.checked }))}
+          />
+          Supports Physical/Pickup
+        </label>
+        <label className="flex items-center gap-2 text-sm text-neutral-700">
+          <input
+            type="checkbox"
+            checked={form.supports_digital}
+            onChange={(e) => setForm((prev: any) => ({ ...prev, supports_digital: e.target.checked }))}
+          />
+          Supports Digital
+        </label>
+      </div>
+      <label className="flex items-center gap-2 text-sm text-neutral-700">
+        <input
+          type="checkbox"
+          checked={form.is_active}
+          onChange={(e) => setForm((prev: any) => ({ ...prev, is_active: e.target.checked }))}
+        />
+        Active
+      </label>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-sm font-medium text-neutral-700">Requirements (max 5)</label>
+          <button type="button" className="px-2 py-1 text-xs bg-neutral-100 rounded hover:bg-neutral-200" onClick={addRequirement} disabled={requirements.length >= 5}>Add</button>
+        </div>
+        <div className="space-y-2">
+          {requirements.map((req, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <input
+                value={req}
+                onChange={(e) => updateRequirement(index, e.target.value)}
+                className="flex-1 border border-neutral-300 rounded-md px-3 py-2 text-sm"
+                placeholder="Requirement description"
+              />
+              <button
+                type="button"
+                className="px-2 py-1 text-xs bg-rose-100 hover:bg-rose-200 text-rose-700 rounded"
+                onClick={() => removeRequirement(index)}
+                disabled={requirements.length <= 1 && !requirements[index]}
+              >Remove</button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center justify-end gap-2 pt-2">
+        <button type="button" className="px-3 py-1.5 rounded bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-sm" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="px-3 py-1.5 rounded bg-ocean-600 hover:bg-ocean-700 text-white text-sm disabled:opacity-60" disabled={disabled || submitting}>
+          {submitting ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+    </form>
+  )
+}
 

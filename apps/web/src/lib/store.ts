@@ -37,6 +37,7 @@ type AppState = {
   setAuth: (user: User, accessToken: string, refreshToken: string) => void
   loginAs: (r: 'resident' | 'admin') => void
   logout: () => void
+  forceLogout: () => void
 }
 
 export const useAppStore = create<AppState>((set) => {
@@ -129,6 +130,14 @@ export const useAppStore = create<AppState>((set) => {
     logout: () => {
       // best-effort server logout to clear cookie and blacklist token
       try { void authApi.logout() } catch {}
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('munlink:role')
+        localStorage.removeItem('munlink:user')
+      }
+      setApiSessionAccessToken(null)
+      set({ role: 'public', isAuthenticated: false, user: undefined, accessToken: undefined, refreshToken: undefined, emailVerified: false, adminVerified: false })
+    },
+    forceLogout: () => {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('munlink:role')
         localStorage.removeItem('munlink:user')

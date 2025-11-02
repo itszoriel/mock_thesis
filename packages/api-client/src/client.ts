@@ -13,6 +13,7 @@ export const api = axios.create({
 let accessToken: string | null = null
 let refreshPromise: Promise<string | null> | null = null
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
+let unauthorizedHandler: (() => void) | null = null
 
 export const getAccessToken = (): string | null => accessToken
 export const setAccessToken = (token: string | null) => {
@@ -35,6 +36,10 @@ export const clearAccessToken = () => {
 export const setSessionAccessToken = (token: string | null) => {
   setAccessToken(token)
   if (token) scheduleRefresh(token)
+}
+
+export const setUnauthorizedHandler = (handler: (() => void) | null) => {
+  unauthorizedHandler = handler
 }
 
 function base64UrlDecode(input: string): string {
@@ -176,7 +181,15 @@ api.interceptors.response.use(
         }
       } catch {}
       clearAccessToken()
-      if (typeof window !== 'undefined') window.location.href = '/login'
+      if (unauthorizedHandler) {
+        try {
+          unauthorizedHandler()
+        } catch (err) {
+          console.error('Unauthorized handler threw an error:', err)
+        }
+      } else if (typeof window !== 'undefined') {
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }

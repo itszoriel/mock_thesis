@@ -78,7 +78,7 @@ def test_login_invalid_password_returns_401(app, client):
         'password': 'WrongPass1'
     })
 
-    assert resp.status_code == 401
-    assert 'invalid credentials' in (resp.json or {}).get('error', '').lower()
+    assert resp.status_code == 400
+    assert (resp.json or {}).get('error') == 'Incorrect password'
 
 

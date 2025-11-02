@@ -6,6 +6,7 @@ export {
   clearAccessToken,
   setSessionAccessToken,
   bootstrapAuth,
+  setUnauthorizedHandler,
 } from './client'
 
 

@@ -124,7 +124,6 @@ def create_app(config_class=Config):
                 'marketplace/',
                 'announcements/',
                 'profiles/',
-                'verification/',
                 'document_requests/',
                 'benefits/',
                 'issues/',

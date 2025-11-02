@@ -2,6 +2,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
+import json
 
 try:
     from apps.api import db
@@ -119,7 +120,12 @@ def create_application():
         if not user:
             return jsonify({'error': 'User not found'}), 404
 
-        data = request.get_json() or {}
+        is_multipart = (request.content_type or '').lower().startswith('multipart/form-data')
+        if is_multipart:
+            form = request.form or {}
+            data = {key: form.get(key) for key in form.keys()}
+        else:
+            data = request.get_json(silent=True) or {}
         required = ['program_id']
         validate_required_fields(data, required)
 
@@ -136,20 +142,65 @@ def create_application():
         if program.municipality_id and user.municipality_id != program.municipality_id:
             return jsonify({'error': 'Program not available for your municipality'}), 403
 
+        required_docs = []
+        if isinstance(program.required_documents, list):
+            required_docs = [str(item).strip() for item in program.required_documents if str(item).strip()]
+        required_docs = required_docs[:5]
+
+        uploaded_requirement_files = []
+        additional_files = []
+        if is_multipart:
+            primary = request.files.getlist('requirement_files')
+            alternate = request.files.getlist('requirements[]')
+            uploaded_requirement_files = [f for f in (primary or alternate or []) if getattr(f, 'filename', '')]
+            additional_files = [f for f in request.files.getlist('supporting_files') if getattr(f, 'filename', '')]
+
+        if required_docs and len(uploaded_requirement_files) < len(required_docs):
+            return jsonify({'error': 'Missing required attachments', 'details': f'{len(required_docs)} files required; received {len(uploaded_requirement_files)}'}), 400
+
         # Generate application number
         count = BenefitApplication.query.count() + 1
         app_number = f"APP-{user.municipality_id}-{user_id}-{count}"
+
+        raw_app_data = data.get('application_data')
+        if isinstance(raw_app_data, str):
+            try:
+                application_data = json.loads(raw_app_data) if raw_app_data.strip() else {}
+            except json.JSONDecodeError:
+                application_data = {}
+        elif isinstance(raw_app_data, dict):
+            application_data = raw_app_data
+        else:
+            application_data = {}
 
         app = BenefitApplication(
             application_number=app_number,
             user_id=user_id,
             program_id=program.id,
-            application_data=data.get('application_data') or {},
+            application_data=application_data,
             supporting_documents=[],
             status='pending',
         )
         db.session.add(app)
         db.session.commit()
+
+        if (uploaded_requirement_files or additional_files):
+            municipality = Municipality.query.get(user.municipality_id)
+            municipality_slug = municipality.slug if municipality else 'unknown'
+            stored_paths = []
+            try:
+                for upload in uploaded_requirement_files + additional_files:
+                    saved = save_benefit_document(upload, app.id, municipality_slug)
+                    stored_paths.append(saved)
+                if stored_paths:
+                    existing = app.supporting_documents or []
+                    app.supporting_documents = existing + stored_paths
+                    db.session.commit()
+            except Exception as file_exc:
+                db.session.rollback()
+                db.session.delete(app)
+                db.session.commit()
+                return jsonify({'error': 'Failed to save attachments', 'details': str(file_exc)}), 500
 
         return jsonify({'message': 'Application created successfully', 'application': app.to_dict()}), 201
     except ValidationError as e:

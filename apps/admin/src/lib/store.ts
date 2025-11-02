@@ -29,6 +29,7 @@ export type AdminState = {
   setAuth: (user: User, accessToken: string, refreshToken: string) => void
   setTokens: (accessToken: string, refreshToken?: string) => void
   logout: () => void
+  forceLogout: () => void
   updateUser: (user: User) => void
 }
 
@@ -84,6 +85,19 @@ export const useAdminStore = create<AdminState>((set) => {
       }))
     },
     logout: () => {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('admin:access_token')
+        localStorage.removeItem('admin:refresh_token')
+        localStorage.removeItem('admin:user')
+        try { sessionStorage.clear() } catch {}
+      }
+      try {
+        setSessionAccessToken(null)
+        clearAccessToken()
+      } catch {}
+      set({ user: undefined, accessToken: undefined, refreshToken: undefined, isAuthenticated: false })
+    },
+    forceLogout: () => {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('admin:access_token')
         localStorage.removeItem('admin:refresh_token')

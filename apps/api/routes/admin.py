@@ -1506,6 +1506,14 @@ def admin_create_benefit_program():
         if not name or not code:
             return jsonify({'error': 'name and code are required'}), 400
 
+        raw_requirements = data.get('required_documents') or data.get('requirements')
+        if raw_requirements is None:
+            requirements = []
+        elif isinstance(raw_requirements, list):
+            requirements = [str(item).strip() for item in raw_requirements if str(item).strip()][:5]
+        else:
+            requirements = [str(raw_requirements).strip()][:5]
+
         program = BenefitProgram(
             name=name,
             code=code,
@@ -1513,7 +1521,7 @@ def admin_create_benefit_program():
             program_type=program_type,
             municipality_id=program_municipality_id,
             eligibility_criteria=data.get('eligibility_criteria'),
-            required_documents=data.get('required_documents'),
+            required_documents=requirements,
             application_start=data.get('application_start'),
             application_end=data.get('application_end'),
             benefit_amount=data.get('benefit_amount'),
@@ -1550,12 +1558,21 @@ def admin_update_benefit_program(program_id: int):
 
         data = request.get_json() or {}
         for field in [
-            'name','code','description','program_type','eligibility_criteria','required_documents',
+            'name','code','description','program_type','eligibility_criteria',
             'application_start','application_end','benefit_amount','benefit_description','max_beneficiaries',
             'is_active','is_accepting_applications','duration_days'
         ]:
             if field in data:
                 setattr(program, field, data[field])
+
+        if 'required_documents' in data or 'requirements' in data:
+            raw_requirements = data.get('required_documents') or data.get('requirements')
+            if raw_requirements is None:
+                program.required_documents = []
+            elif isinstance(raw_requirements, list):
+                program.required_documents = [str(item).strip() for item in raw_requirements if str(item).strip()][:5]
+            else:
+                program.required_documents = [str(raw_requirements).strip()][:5]
 
         db.session.commit()
         return jsonify({'message': 'Program updated', 'program': program.to_dict()}), 200
@@ -1683,6 +1700,151 @@ def admin_documents_stats():
         return jsonify({'total_requests': total, 'top_requested': top}), 200
     except Exception as e:
         return jsonify({'error': 'Failed to get document stats', 'details': str(e)}), 500
+
+
+@admin_bp.route('/documents/types', methods=['GET'])
+@jwt_required()
+def admin_list_document_types():
+    try:
+        gate = require_admin_municipality()
+        if isinstance(gate, tuple):
+            return gate
+
+        types = DocumentType.query.order_by(DocumentType.authority_level.asc(), DocumentType.name.asc()).all()
+        return jsonify({'types': [t.to_dict() for t in types], 'count': len(types)}), 200
+    except Exception as e:
+        return jsonify({'error': 'Failed to list document types', 'details': str(e)}), 500
+
+
+@admin_bp.route('/documents/types', methods=['POST'])
+@jwt_required()
+def admin_create_document_type():
+    try:
+        gate = require_admin_municipality()
+        if isinstance(gate, tuple):
+            return gate
+
+        data = request.get_json() or {}
+        name = (data.get('name') or '').strip()
+        code = (data.get('code') or '').strip()
+        authority_level = (data.get('authority_level') or '').strip().lower() or 'municipal'
+        if authority_level not in ('municipal', 'barangay'):
+            return jsonify({'error': "authority_level must be 'municipal' or 'barangay'"}), 400
+        if not name or not code:
+            return jsonify({'error': 'name and code are required'}), 400
+
+        fee = data.get('fee', 0)
+        try:
+            fee_value = float(fee)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid fee value'}), 400
+
+        requirements = data.get('requirements') or data.get('required_documents') or []
+        if not isinstance(requirements, list):
+            return jsonify({'error': 'requirements must be an array'}), 400
+        normalized = [str(item).strip() for item in requirements if str(item).strip()][:5]
+
+        doc_type = DocumentType(
+            name=name,
+            code=code,
+            description=data.get('description'),
+            authority_level=authority_level,
+            requirements=normalized,
+            fee=fee_value,
+            processing_days=data.get('processing_days') or 3,
+            supports_physical=bool(data.get('supports_physical', True)),
+            supports_digital=bool(data.get('supports_digital', True)),
+            is_active=bool(data.get('is_active', True)),
+        )
+
+        db.session.add(doc_type)
+        db.session.commit()
+
+        return jsonify({'message': 'Document type created', 'type': doc_type.to_dict()}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to create document type', 'details': str(e)}), 500
+
+
+@admin_bp.route('/documents/types/<int:type_id>', methods=['PUT'])
+@jwt_required()
+def admin_update_document_type(type_id: int):
+    try:
+        gate = require_admin_municipality()
+        if isinstance(gate, tuple):
+            return gate
+
+        doc_type = DocumentType.query.get(type_id)
+        if not doc_type:
+            return jsonify({'error': 'Document type not found'}), 404
+
+        data = request.get_json() or {}
+
+        updatable_fields = {
+            'name': str,
+            'code': str,
+            'description': str,
+            'authority_level': str,
+            'processing_days': int,
+            'supports_physical': bool,
+            'supports_digital': bool,
+            'is_active': bool,
+        }
+        for field, caster in updatable_fields.items():
+            if field in data:
+                value = data[field]
+                if caster is bool:
+                    value = bool(value)
+                elif caster is int:
+                    try:
+                        value = int(value)
+                    except (TypeError, ValueError):
+                        return jsonify({'error': f'Invalid value for {field}'}), 400
+                else:
+                    value = (value or '').strip()
+                setattr(doc_type, field, value)
+
+        if 'fee' in data:
+            try:
+                doc_type.fee = float(data['fee'])
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Invalid fee value'}), 400
+
+        if 'requirements' in data or 'required_documents' in data:
+            requirements = data.get('requirements') or data.get('required_documents') or []
+            if not isinstance(requirements, list):
+                return jsonify({'error': 'requirements must be an array'}), 400
+            doc_type.requirements = [str(item).strip() for item in requirements if str(item).strip()][:5]
+
+        db.session.commit()
+        return jsonify({'message': 'Document type updated', 'type': doc_type.to_dict()}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to update document type', 'details': str(e)}), 500
+
+
+@admin_bp.route('/documents/types/<int:type_id>', methods=['DELETE'])
+@jwt_required()
+def admin_delete_document_type(type_id: int):
+    try:
+        gate = require_admin_municipality()
+        if isinstance(gate, tuple):
+            return gate
+
+        doc_type = DocumentType.query.get(type_id)
+        if not doc_type:
+            return jsonify({'error': 'Document type not found'}), 404
+
+        attached = DocumentRequest.query.filter_by(document_type_id=doc_type.id).first()
+        if attached:
+            return jsonify({'error': 'Cannot delete a type with active requests'}), 400
+
+        db.session.delete(doc_type)
+        db.session.commit()
+        return jsonify({'message': 'Document type deleted'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to delete document type', 'details': str(e)}), 500
 
 
 @admin_bp.route('/documents/requests', methods=['GET'])

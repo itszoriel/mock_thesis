@@ -1,5 +1,5 @@
 import { StatusBadge, Card, EmptyState } from '@munlink/ui'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { ArrowRight, ArrowLeft } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import GatedAction from '@/components/GatedAction'
@@ -36,6 +36,8 @@ export default function BenefitsPage() {
   const [applications, setApplications] = useState<any[]>([])
   const [openId, setOpenId] = useState<string | number | null>(null)
   const isMismatch = !!(user as any)?.municipality_id && !!selectedMunicipality?.id && (user as any).municipality_id !== selectedMunicipality.id
+  const [benefitRequirements, setBenefitRequirements] = useState<Array<{ label: string; file?: File | null }>>([])
+  const [applicationNotes, setApplicationNotes] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -67,6 +69,43 @@ export default function BenefitsPage() {
     const t = (searchParams.get('tab') || '').toLowerCase()
     if (t === 'applications') setTab('applications')
   }, [searchParams])
+
+  useEffect(() => {
+    if (!selected) {
+      setBenefitRequirements([])
+      return
+    }
+    const reqs = [
+      ...(((selected as any)?.required_documents) || []),
+      ...(((selected as any)?.requirements) || []),
+    ]
+      .filter((item) => !!item)
+      .slice(0, 5)
+    // Remove duplicates while preserving order
+    const seen = new Set<string>()
+    const deduped = reqs.filter((label) => {
+      const key = String(label)
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    setBenefitRequirements(deduped.map((label) => ({ label: String(label), file: undefined })))
+  }, [selected])
+
+  const handleBenefitRequirementChange = (index: number, file: File | null) => {
+    setBenefitRequirements((prev) => {
+      const next = [...prev]
+      if (next[index]) {
+        next[index] = { ...next[index], file: file || undefined }
+      }
+      return next
+    })
+  }
+
+  const hasBenefitRequirementFiles = useMemo(() => {
+    if (benefitRequirements.length === 0) return true
+    return benefitRequirements.every((entry) => entry.file instanceof File)
+  }, [benefitRequirements])
 
   return (
     <div className="container-responsive py-12">
@@ -172,6 +211,8 @@ export default function BenefitsPage() {
                       setSelected(p)
                       setOpen(true)
                       setStep(1)
+                      setResult(null)
+                      setApplicationNotes('')
                     }}
                     tooltip="Login required to use this feature"
                   >
@@ -224,8 +265,36 @@ export default function BenefitsPage() {
           <div className="space-y-3">
             <div>
               <label className="block text-sm font-medium mb-1">Additional Information</label>
-              <textarea className="input-field" rows={4} placeholder="Share any details to support your application" onChange={(e) => setResult({ ...(result || {}), notes: e.target.value })} />
+              <textarea className="input-field" rows={4} placeholder="Share any details to support your application" value={applicationNotes} onChange={(e) => setApplicationNotes(e.target.value)} />
             </div>
+            {benefitRequirements.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-semibold">Required Attachments</div>
+                <div className="text-xs text-gray-600">Upload clear copies for each listed requirement (images or PDF).</div>
+                <div className="space-y-2">
+                  {benefitRequirements.map((entry, index) => (
+                    <div key={index} className="border rounded-lg p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-gray-800">{entry.label}</div>
+                        <div className="text-xs text-gray-600">Required</div>
+                        {entry.file && (
+                          <div className="text-xs text-emerald-700 mt-1 truncate">Selected: {entry.file.name}</div>
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        className="text-xs"
+                        onChange={(e) => handleBenefitRequirementChange(index, e.target.files?.[0] || null)}
+                      />
+                    </div>
+                  ))}
+                </div>
+                {!hasBenefitRequirementFiles && (
+                  <div className="text-xs text-rose-700">Attach files for all requirements before submitting.</div>
+                )}
+              </div>
+            )}
             <div className="flex justify-between">
               <button className="btn btn-secondary inline-flex items-center gap-2" onClick={() => setStep(1)}>
                 <ArrowLeft className="w-4 h-4" aria-hidden="true" />
@@ -243,19 +312,41 @@ export default function BenefitsPage() {
             <div className="text-sm">Review your application then submit.</div>
             <div className="rounded-lg border p-3 text-sm">
               <div><span className="font-medium">Program:</span> {selected?.name}</div>
-              {result?.notes && <div><span className="font-medium">Notes:</span> {result.notes}</div>}
+              {applicationNotes && <div><span className="font-medium">Notes:</span> {applicationNotes}</div>}
+              {benefitRequirements.length > 0 && (
+                <div className="mt-2">
+                  <span className="font-medium">Required Attachments:</span>
+                  <ul className="list-disc list-inside text-xs text-gray-700">
+                    {benefitRequirements.map((entry, idx) => (
+                      <li key={idx}>{entry.label} — {entry.file ? entry.file.name : 'Not attached'}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
             <div className="flex items-center justify-between">
               <button className="btn btn-secondary inline-flex items-center gap-2" onClick={() => setStep(2)}>
                 <ArrowLeft className="w-4 h-4" aria-hidden="true" />
                 <span>Back</span>
               </button>
-              <button className="btn btn-primary" disabled={applying} onClick={async () => {
+              <button className="btn btn-primary" disabled={applying || !hasBenefitRequirementFiles} onClick={async () => {
                 setApplying(true)
                 try {
-                  const res = await benefitsApi.createApplication({ program_id: selected!.id, application_data: result || {} })
+                  const form = new FormData()
+                  form.append('program_id', String(selected!.id))
+                  if (applicationNotes.trim()) {
+                    form.append('application_data', JSON.stringify({ notes: applicationNotes.trim() }))
+                  }
+                  benefitRequirements.forEach((entry, idx) => {
+                    if (entry.file) {
+                      form.append('requirement_files', entry.file, `requirement-${idx + 1}-${entry.file.name}`)
+                    }
+                  })
+                  const res = await benefitsApi.createApplication(form)
                   const app = res?.data?.application
                   setResult(app)
+                  setApplicationNotes('')
+                  setBenefitRequirements((prev) => prev.map((entry) => ({ ...entry, file: undefined })))
                 } finally {
                   setApplying(false)
                 }

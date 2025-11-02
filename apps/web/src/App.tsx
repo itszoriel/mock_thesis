@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
-import { bootstrapAuth, getAccessToken, authApi } from '@/lib/api'
+import { bootstrapAuth, getAccessToken, authApi, setUnauthorizedHandler } from '@/lib/api'
 import { useAppStore } from '@/lib/store'
 
 let hasBootstrappedAuth = false
@@ -31,6 +31,18 @@ import ResetPasswordPage from './pages/ResetPasswordPage'
 function App() {
   const setAuth = useAppStore((s) => s.setAuth)
   const setAuthBootstrapped = useAppStore((s) => s.setAuthBootstrapped)
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      const { forceLogout } = useAppStore.getState()
+      forceLogout()
+      if (typeof window !== 'undefined') {
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
+      }
+    })
+    return () => { setUnauthorizedHandler(null) }
+  }, [])
   useEffect(() => {
     let cancelled = false
     const init = async () => {

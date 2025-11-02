@@ -1,4 +1,4 @@
-import api, { setAccessToken, setSessionAccessToken, clearAccessToken, bootstrapAuth, getAccessToken } from '@munlink/api-client'
+import api, { setAccessToken, setSessionAccessToken, clearAccessToken, bootstrapAuth, getAccessToken, setUnauthorizedHandler } from '@munlink/api-client'
 
 // API methods
 export const authApi = {
@@ -88,7 +88,12 @@ export const announcementsApi = {
 
 export const documentsApi = {
   getTypes: () => api.get('/api/documents/types'),
-  createRequest: (data: any) => api.post('/api/documents/requests', data),
+  createRequest: (data: any) => {
+    if (data instanceof FormData) {
+      return api.post('/api/documents/requests', data, { headers: { 'Content-Type': 'multipart/form-data' } })
+    }
+    return api.post('/api/documents/requests', data)
+  },
   getMyRequests: () => api.get('/api/documents/my-requests'),
   getRequest: (id: number) => api.get(`/api/documents/requests/${id}`),
   uploadSupportingDocs: (id: number, form: FormData) => api.post(`/api/documents/requests/${id}/upload`, form, { headers: { 'Content-Type': 'multipart/form-data' } }),
@@ -108,7 +113,12 @@ export const issuesApi = {
 export const benefitsApi = {
   getPrograms: (params?: any) => api.get('/api/benefits/programs', { params }),
   getProgram: (id: number) => api.get(`/api/benefits/programs/${id}`),
-  createApplication: (data: any) => api.post('/api/benefits/applications', data),
+  createApplication: (data: any) => {
+    if (data instanceof FormData) {
+      return api.post('/api/benefits/applications', data, { headers: { 'Content-Type': 'multipart/form-data' } })
+    }
+    return api.post('/api/benefits/applications', data)
+  },
   getMyApplications: () => api.get('/api/benefits/my-applications'),
   uploadDocs: (id: number, form: FormData) => api.post(`/api/benefits/applications/${id}/upload`, form, { headers: { 'Content-Type': 'multipart/form-data' } }),
 }
@@ -152,6 +162,6 @@ export const mediaUrl = (p?: string): string => {
   return `${base}/uploads/${s}`
 }
 
-export { api, setAccessToken, setSessionAccessToken, clearAccessToken, bootstrapAuth, getAccessToken }
+export { api, setAccessToken, setSessionAccessToken, clearAccessToken, bootstrapAuth, getAccessToken, setUnauthorizedHandler }
 export default api
 

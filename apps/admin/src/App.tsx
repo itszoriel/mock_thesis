@@ -1,6 +1,6 @@
 import { Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { useEffect } from 'react'
-import { bootstrapAuth, getAccessToken } from '@munlink/api-client'
+import { bootstrapAuth, getAccessToken, setUnauthorizedHandler } from '@munlink/api-client'
 import AdminRegisterPage from './pages/AdminRegisterPage'
 import AdminLoginPage from './pages/AdminLoginPage'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -24,6 +24,19 @@ import { authApi } from './lib/api'
 export default function App() {
   const isAuthenticated = useAdminStore((state: AdminState) => state.isAuthenticated)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      const { forceLogout } = useAdminStore.getState()
+      forceLogout()
+      if (typeof window !== 'undefined') {
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login'
+        }
+      }
+    })
+    return () => { setUnauthorizedHandler(null) }
+  }, [])
 
   useEffect(() => {
     let cancelled = false

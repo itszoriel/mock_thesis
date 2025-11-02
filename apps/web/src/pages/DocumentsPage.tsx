@@ -43,6 +43,7 @@ export default function DocumentsPage() {
   const [pickupLocation, setPickupLocation] = useState<'municipal'|'barangay'>('municipal')
   const [myRequests, setMyRequests] = useState<any[]>([])
   const [loadingMy, setLoadingMy] = useState(false)
+  const [requirementInputs, setRequirementInputs] = useState<Array<{ label: string; file?: File | null }>>([])
 
   useEffect(() => {
     let cancelled = false
@@ -87,6 +88,14 @@ export default function DocumentsPage() {
   }, [(user as any)?.municipality_id, (user as any)?.barangay_id])
 
   const selectedType = useMemo(() => types.find(t => t.id === selectedTypeId) || null, [types, selectedTypeId])
+  const requirementsList = useMemo(() => {
+    if (!selectedType || !Array.isArray((selectedType as any).requirements)) return []
+    return ((selectedType as any).requirements as any[]).filter((item) => !!item).slice(0, 5)
+  }, [selectedType])
+
+  useEffect(() => {
+    setRequirementInputs(requirementsList.map((label: any) => ({ label: String(label), file: undefined })))
+  }, [requirementsList])
   const digitalAllowed = useMemo(() => {
     if (!selectedType) return false
     const fee = Number(selectedType.fee || 0)
@@ -94,13 +103,31 @@ export default function DocumentsPage() {
   }, [selectedType])
   const isMismatch = useMemo(() => !!(user as any)?.municipality_id && !!selectedMunicipality?.id && (user as any).municipality_id !== selectedMunicipality.id, [user, selectedMunicipality?.id])
   const userMunicipalityName = (user as any)?.municipality_name
+  const handleRequirementFileChange = (index: number, file: File | null) => {
+    setRequirementInputs((prev) => {
+      const next = [...prev]
+      if (next[index]) {
+        next[index] = { ...next[index], file: file || undefined }
+      }
+      return next
+    })
+  }
+  const hasRequiredFiles = useMemo(() => {
+    if (requirementsList.length === 0) return true
+    if (requirementInputs.length < requirementsList.length) return false
+    return requirementInputs.every((entry, idx) => {
+      if (!requirementsList[idx]) return true
+      return entry.file instanceof File
+    })
+  }, [requirementsList, requirementInputs])
 
   const canSubmit = useMemo(() => {
     if (!selectedTypeId || !(user as any)?.municipality_id || !purpose) return false
+    if (!hasRequiredFiles) return false
     if (deliveryMethod === 'digital') return true
     // pickup requires barangay on profile
     return !!(user as any)?.barangay_id
-  }, [selectedTypeId, (user as any)?.municipality_id, purpose, deliveryMethod, (user as any)?.barangay_id])
+  }, [selectedTypeId, (user as any)?.municipality_id, purpose, deliveryMethod, (user as any)?.barangay_id, hasRequiredFiles])
 
   return (
     <div className="container-responsive py-12">
@@ -256,6 +283,34 @@ export default function DocumentsPage() {
                     <textarea className="input-field" rows={3} value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Provide extra context to help process your request" />
                     <div className="text-xs text-gray-600 mt-1">Provide extra context or clarifications that may help the office process your request.</div>
                   </div>
+                  {requirementsList.length > 0 && (
+                    <div className="md:col-span-2 space-y-2">
+                      <div className="text-sm font-semibold">Required Attachments</div>
+                      <div className="text-xs text-gray-600">Upload a file for each listed requirement. Accepted formats: images or PDF.</div>
+                      <div className="space-y-2">
+                        {requirementsList.map((label, idx) => (
+                          <div key={idx} className="border rounded-lg p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="text-sm font-medium text-gray-800">{label}</div>
+                              <div className="text-xs text-gray-600">Required</div>
+                              {requirementInputs[idx]?.file && (
+                                <div className="text-xs text-emerald-700 mt-1 truncate">Selected: {requirementInputs[idx]?.file?.name}</div>
+                              )}
+                            </div>
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              className="text-xs"
+                              onChange={(e) => handleRequirementFileChange(idx, e.target.files?.[0] || null)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                      {!hasRequiredFiles && (
+                        <div className="text-xs text-rose-700">Attach files for all requirements before continuing.</div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="mt-6 flex flex-col xs:flex-row gap-3 xs:justify-between">
                   <button className="btn btn-secondary w-full xs:w-auto inline-flex items-center gap-2" onClick={() => setStep(1)}>
@@ -282,6 +337,18 @@ export default function DocumentsPage() {
                   {civilStatus && <div><span className="font-medium">Civil Status:</span> {civilStatus}</div>}
                   {age && <div><span className="font-medium">Age:</span> {age}</div>}
                   {remarks && <div><span className="font-medium">Remarks:</span> {remarks}</div>}
+                  {requirementsList.length > 0 && (
+                    <div>
+                      <span className="font-medium">Required Attachments:</span>
+                      <ul className="list-disc list-inside">
+                        {requirementInputs.map((entry, idx) => (
+                          <li key={idx} className="text-xs text-gray-700">
+                            {entry.label} — {entry.file ? entry.file.name : 'Not attached'}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
                 {deliveryMethod==='digital' && (
                   <div className="mt-3 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-2">Digital copies are free and include a QR code for verification.</div>
@@ -303,18 +370,24 @@ export default function DocumentsPage() {
                       setSubmitting(true)
                       setResultMsg('')
                       try {
-                        const res = await documentsApi.createRequest({
-                          document_type_id: selectedTypeId,
-                          municipality_id: (user as any)!.municipality_id as number,
-                          delivery_method: deliveryMethod,
-                          // delivery_address is derived server-side for pickup
-                          pickup_location: pickupLocation,
-                          barangay_id: (pickupLocation==='barangay' ? (user as any)?.barangay_id : undefined) as any,
-                          purpose,
-                          civil_status: civilStatus || undefined,
-                          age: (age && !Number.isNaN(Number(age))) ? Number(age) : undefined,
-                          remarks: remarks || undefined,
+                        const form = new FormData()
+                        form.append('document_type_id', String(selectedTypeId))
+                        form.append('municipality_id', String((user as any)!.municipality_id))
+                        form.append('delivery_method', deliveryMethod)
+                        form.append('pickup_location', pickupLocation)
+                        if (pickupLocation === 'barangay' && (user as any)?.barangay_id) {
+                          form.append('barangay_id', String((user as any)?.barangay_id))
+                        }
+                        form.append('purpose', purpose)
+                        if (civilStatus) form.append('civil_status', civilStatus)
+                        if (age && !Number.isNaN(Number(age))) form.append('age', String(Number(age)))
+                        if (remarks) form.append('remarks', remarks)
+                        requirementInputs.forEach((entry, idx) => {
+                          if (entry.file) {
+                            form.append('requirement_files', entry.file, `requirement-${idx + 1}-${entry.file.name}`)
+                          }
                         })
+                        const res = await documentsApi.createRequest(form)
                         const id = res?.data?.request?.id
                         setCreatedId(id || null)
                         setResultMsg('Request created successfully')

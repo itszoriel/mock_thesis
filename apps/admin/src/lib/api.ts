@@ -362,6 +362,14 @@ export default apiClient
 
 // Admin Reports supplemental APIs
 export const documentsAdminApi = {
+  listTypes: (): Promise<ApiResponse<{ types: any[]; count: number }>> =>
+    apiClient.get('/api/admin/documents/types').then(res => res.data),
+  createType: (data: any): Promise<ApiResponse<{ type: any }>> =>
+    apiClient.post('/api/admin/documents/types', data).then(res => res.data),
+  updateType: (id: number, data: any): Promise<ApiResponse<{ type: any }>> =>
+    apiClient.put(`/api/admin/documents/types/${id}`, data).then(res => res.data),
+  deleteType: (id: number): Promise<ApiResponse> =>
+    apiClient.delete(`/api/admin/documents/types/${id}`).then(res => res.data),
   getStats: (range: string = 'last_30_days'): Promise<ApiResponse<{ total_requests: number; top_requested: Array<{ name: string; count: number }> }>> =>
     apiClient.get('/api/admin/documents/stats', { params: { range } }).then(res => res.data),
   listRequests: (params: Record<string, any> = {}): Promise<ApiResponse<{ requests: any[]; pagination?: any }>> =>
