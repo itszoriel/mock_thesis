@@ -1429,6 +1429,9 @@ def admin_update_transfer(transfer_id: int):
             user.municipality_id = t.to_municipality_id
             user.barangay_id = None
             user.admin_verified = False
+            user.admin_verified_at = None
+            user.verification_status = 'pending'
+            user.verification_notes = 'Pending verification after transfer'
             user.updated_at = now
             t.status = 'accepted'
             t.accepted_at = now

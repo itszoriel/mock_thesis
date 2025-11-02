@@ -10,14 +10,7 @@ export default function AdminHeader() {
   const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`
 
   // Resolve public site URL similar to TopHeader logic
-  const PUBLIC_SITE_URL = (import.meta as any).env?.VITE_PUBLIC_SITE_URL || (() => {
-    try {
-      const { protocol, hostname } = window.location
-      return `${protocol}//${hostname}`
-    } catch {
-      return 'https://munlink.zambales.gov.ph'
-    }
-  })()
+  const PUBLIC_SITE_URL = (import.meta as any).env?.VITE_PUBLIC_SITE_URL || 'https://munlink-web.onrender.com'
 
   const openPublicSite = () => {
     const url = PUBLIC_SITE_URL

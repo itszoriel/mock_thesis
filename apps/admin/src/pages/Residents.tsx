@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { useAdminStore } from '../lib/store'
 import type { AdminState } from '../lib/store'
 import { DataTable, Modal, Button } from '@munlink/ui'
+import { AdminPageShell, AdminPageHeader } from '../components/layout/Page'
 import { Check, RotateCcw, Pause, ExternalLink, Hourglass, Users, UserCheck, UserMinus, Clock } from 'lucide-react'
 import TransferRequestCard from '../components/transfers/TransferRequestCard'
 import TransferRequestModal from '../components/transfers/TransferRequestModal'
@@ -185,6 +186,12 @@ export default function Residents() {
     needs_revision: rows.filter((r) => r.status === 'needs_revision').length,
     suspended: rows.filter((r) => r.status === 'suspended').length,
   }), [rows])
+  const headerStats = useMemo(() => ([
+    { label: 'Residents', value: counts.all },
+    { label: 'Verified', value: counts.verified },
+    { label: 'Pending', value: counts.pending },
+    { label: 'Needs Revision', value: counts.needs_revision },
+  ]), [counts])
 
   const overviewCards = useMemo(() => [
     {
@@ -285,72 +292,64 @@ export default function Residents() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <div className="relative">
-        <div className="absolute inset-x-0 top-0 h-[280px] bg-gradient-to-br from-ocean-100/60 via-white to-forest-100/50" aria-hidden="true" />
-        <div className="relative px-4 pb-16 sm:px-6 lg:px-10">
-          <div className="pt-8">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-ocean-700/80">Admin · Residents</p>
-                <h1 className="text-3xl font-bold text-neutral-900">Residents</h1>
-                <p className="max-w-2xl text-neutral-600">
-                  Manage verified residents and municipality transfer requests
-                  {adminMunicipalityName ? ` for ${adminMunicipalityName}` : ''}.
-                </p>
-              </div>
-            </div>
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              {overviewCards.map((card) => {
-                const Icon = card.icon
-                const isActive = filter === card.key
-                return (
-                  <button
-                    key={card.key}
-                    type="button"
-                    onClick={() => setFilter(card.key)}
-                    className={`group relative overflow-hidden rounded-2xl border border-transparent bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ocean-500/70 ${isActive ? 'ring-2 ring-ocean-500/60 shadow-lg' : ''}`}
-                    aria-pressed={isActive}
-                  >
-                    <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${card.gradient}`} />
-                    <div className="relative">
-                      <div className={`mb-3 inline-flex items-center justify-center rounded-xl p-3 ${card.iconClass}`}>
-                        <Icon className="h-5 w-5" aria-hidden="true" />
-                      </div>
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span className="text-sm font-medium text-neutral-500">{card.label}</span>
-                        <span className="text-lg font-semibold text-neutral-900">{card.value}</span>
-                      </div>
-                      <p className="mt-2 text-sm text-neutral-500">{card.description}</p>
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+    <AdminPageShell>
+      <AdminPageHeader
+        overline="Admin • Residents"
+        title="Residents"
+        description={`Manage verified residents and municipality transfer requests${adminMunicipalityName ? ` for ${adminMunicipalityName}` : ''}.`}
+        stats={headerStats}
+      />
 
-          <div className="mt-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="inline-flex items-center gap-1 rounded-full bg-white p-1 shadow-sm ring-1 ring-neutral-200">
-              {[
-                { key: 'residents', label: 'Residents' },
-                { key: 'transfers', label: 'Transfer Requests' },
-              ].map((t: any) => (
-                <button
-                  key={t.key}
-                  onClick={() => setActiveTab(t.key)}
-                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${activeTab === t.key ? 'bg-ocean-500 text-white shadow' : 'text-neutral-600 hover:bg-neutral-100/70'}`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            {adminMunicipalityName && (
-              <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-neutral-600 shadow-sm ring-1 ring-neutral-200">
-                <svg className="h-4 w-4 text-neutral-500" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm-2 6V6a2 2 0 114 0v2H8z" /></svg>
-                <span className="truncate">{adminMunicipalityName}</span>
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {overviewCards.map((card) => {
+          const Icon = card.icon
+          const isActive = filter === card.key
+          return (
+            <button
+              key={card.key}
+              type="button"
+              onClick={() => setFilter(card.key)}
+              className={`group relative overflow-hidden rounded-2xl border border-transparent bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ocean-500/70 ${isActive ? 'ring-2 ring-ocean-500/60 shadow-lg' : ''}`}
+              aria-pressed={isActive}
+            >
+              <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${card.gradient}`} />
+              <div className="relative">
+                <div className={`mb-3 inline-flex items-center justify-center rounded-xl p-3 ${card.iconClass}`}>
+                  <Icon className="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-sm font-medium text-neutral-500">{card.label}</span>
+                  <span className="text-lg font-semibold text-neutral-900">{card.value}</span>
+                </div>
+                <p className="mt-2 text-sm text-neutral-500">{card.description}</p>
               </div>
-            )}
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="inline-flex items-center gap-1 rounded-full bg-white p-1 shadow-sm ring-1 ring-neutral-200">
+          {[
+            { key: 'residents', label: 'Residents' },
+            { key: 'transfers', label: 'Transfer Requests' },
+          ].map((t: any) => (
+            <button
+              key={t.key}
+              onClick={() => setActiveTab(t.key)}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${activeTab === t.key ? 'bg-ocean-500 text-white shadow' : 'text-neutral-600 hover:bg-neutral-100/70'}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {adminMunicipalityName && (
+          <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-neutral-600 shadow-sm ring-1 ring-neutral-200">
+            <svg className="h-4 w-4 text-neutral-500" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm-2 6V6a2 2 0 114 0v2H8z" /></svg>
+            <span className="truncate">{adminMunicipalityName}</span>
           </div>
+        )}
+      </div>
 
           {activeTab === 'residents' && (
             <>
@@ -576,8 +575,7 @@ export default function Residents() {
               </div>
             </div>
           )}
-        </div>
-      </div>
+
       {/* Detail Modal */}
       {detailOpen && activeTab==='residents' && (
         <ResidentDetailModal
@@ -590,7 +588,7 @@ export default function Residents() {
       {detailOpen && activeTab==='transfers' && (
         <TransferRequestModal open={true} onClose={() => setDetailOpen(false)} transfer={selected} />
       )}
-    </div>
+    </AdminPageShell>
   )
 }
 

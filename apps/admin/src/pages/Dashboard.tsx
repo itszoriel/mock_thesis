@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAdminStore } from '../lib/store'
 import type { AdminState } from '../lib/store'
 import { StatCard, Card, Button, Select } from '@munlink/ui'
+import { AdminPageShell, AdminPageHeader } from '../components/layout/Page'
 import { Hand, Users, AlertTriangle, ShoppingBag, Megaphone } from 'lucide-react'
 
 type ActivityItem = { icon: string; text: string; who?: string; ts: number; color: 'ocean'|'forest'|'sunset'|'purple'|'red' }
@@ -135,19 +136,19 @@ export default function Dashboard() {
       const feed: ActivityItem[] = []
       for (const u of pendingUsers) {
         const ts = new Date(u.created_at || u.updated_at || Date.now()).getTime()
-        feed.push({ icon: '👥', text: 'New registration', who: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim(), ts, color: 'ocean' })
+        feed.push({ icon: 'registration', text: 'New registration', who: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim(), ts, color: 'ocean' })
       }
       for (const i of issues) {
         const ts = new Date(i.created_at || i.updated_at || Date.now()).getTime()
-        feed.push({ icon: '⚠️', text: `Issue: ${i.title ?? i.category ?? 'New issue'}`, who: i.created_by_name, ts, color: 'red' })
+        feed.push({ icon: 'issue', text: `Issue: ${i.title ?? i.category ?? 'New issue'}`, who: i.created_by_name, ts, color: 'red' })
       }
       for (const it of items) {
         const ts = new Date(it.created_at || it.updated_at || Date.now()).getTime()
-        feed.push({ icon: '🛍️', text: `Marketplace: ${it.title ?? 'New item'}`, who: it.seller_name, ts, color: 'sunset' })
+        feed.push({ icon: 'marketplace', text: `Marketplace: ${it.title ?? 'New item'}`, who: it.seller_name, ts, color: 'sunset' })
       }
       for (const a of announcements) {
         const ts = new Date(a.created_at || a.updated_at || Date.now()).getTime()
-        feed.push({ icon: '📢', text: `Announcement: ${a.title ?? 'New announcement'}`, who: a.created_by_name, ts, color: 'purple' })
+        feed.push({ icon: 'announcement', text: `Announcement: ${a.title ?? 'New announcement'}`, who: a.created_by_name, ts, color: 'purple' })
       }
 
       feed.sort((a, b) => b.ts - a.ts)
@@ -204,51 +205,32 @@ export default function Dashboard() {
 
   const visibleActivity = activityExpanded ? activity.slice(0, 10) : activity.slice(0, 5)
   const visibleOverview = overviewExpanded ? overview.slice(0, 10) : overview.slice(0, 5)
+  const headerStats = [
+    { label: 'Residents', value: loading ? '…' : (dash?.pending_verifications ?? 0) },
+    { label: 'Issues', value: loading ? '…' : (dash?.active_issues ?? 0) },
+    { label: 'Marketplace', value: loading ? '…' : (dash?.marketplace_items ?? 0) },
+    { label: 'Announcements', value: loading ? '…' : (dash?.announcements ?? 0) },
+  ]
 
   function IconFromCode({ code, className }: { code: string; className?: string }) {
-    if (code === '👥') return <Users className={className || 'w-5 h-5'} aria-hidden="true" />
-    if (code === '⚠️') return <AlertTriangle className={className || 'w-5 h-5'} aria-hidden="true" />
-    if (code === '🛍️') return <ShoppingBag className={className || 'w-5 h-5'} aria-hidden="true" />
-    if (code === '📢') return <Megaphone className={className || 'w-5 h-5'} aria-hidden="true" />
+    if (code === 'registration') return <Users className={className || 'w-5 h-5'} aria-hidden="true" />
+    if (code === 'issue') return <AlertTriangle className={className || 'w-5 h-5'} aria-hidden="true" />
+    if (code === 'marketplace') return <ShoppingBag className={className || 'w-5 h-5'} aria-hidden="true" />
+    if (code === 'announcement') return <Megaphone className={className || 'w-5 h-5'} aria-hidden="true" />
     return <Users className={className || 'w-5 h-5'} aria-hidden="true" />
   }
 
   return (
-    <div className="min-h-screen bg-surface">
-      <div className="py-8">
-        <div className="container-responsive space-y-8">
-          {error && (
-            <div className="rounded-2xl border border-red-200 bg-red-50/80 text-red-700 px-4 py-3 text-sm shadow-sm">{error}</div>
-          )}
-          {/* Welcome Banner */}
-          <div className="relative overflow-hidden rounded-3xl border border-white/40 bg-gradient-to-br from-ocean-500 via-ocean-400 to-forest-500 text-white shadow-xl">
-            <div className="absolute -top-20 -right-16 w-64 h-64 bg-white/20 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 left-0 w-72 h-72 bg-black/10 rounded-full blur-3xl" />
-            <div className="relative z-10 px-6 py-8 sm:px-10 sm:py-12 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0 space-y-2">
-                <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1 text-sm font-medium">
-                  Admin Portal <span className="text-white/70">•</span> {dateStr}
-                </span>
-                <h1 className="text-3xl sm:text-4xl font-serif font-semibold flex items-center gap-3">
-                  Hey {user?.first_name}! <Hand className="h-8 w-8" aria-hidden="true" />
-                </h1>
-                <p className="text-white/85 text-lg max-w-xl">You are managing {user?.admin_municipality_name || 'Zambales Province'}. Here’s what’s happening today.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 min-w-[220px]">
-                {[
-                  { label: 'Residents', value: dash?.pending_verifications ?? 0 },
-                  { label: 'Issues', value: dash?.active_issues ?? 0 },
-                  { label: 'Marketplace', value: dash?.marketplace_items ?? 0 },
-                  { label: 'Announcements', value: dash?.announcements ?? 0 },
-                ].map((stat, i) => (
-                  <div key={i} className="rounded-2xl bg-white/15 px-4 py-3 text-center shadow-sm">
-                    <p className="text-lg font-semibold">{loading ? '…' : stat.value}</p>
-                    <p className="text-xs uppercase tracking-wide text-white/70">{stat.label}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+    <AdminPageShell>
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50/80 px-4 py-3 text-sm text-red-700 shadow-sm">{error}</div>
+      )}
+      <AdminPageHeader
+        overline={`Admin Portal · ${dateStr}`}
+        title={<span className="flex items-center gap-3">Hey {user?.first_name}! <Hand className="h-8 w-8" aria-hidden="true" /></span>}
+        description={`You are managing ${user?.admin_municipality_name || 'Zambales Province'}. Here’s what’s happening today.`}
+        stats={headerStats}
+      />
 
           {/* Stats Grid */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -368,9 +350,7 @@ export default function Dashboard() {
               </div>
             </Card>
           </div>
-        </div>
-      </div>
-    </div>
+    </AdminPageShell>
   )
 }
 

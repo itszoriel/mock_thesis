@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { Modal } from '@munlink/ui'
 import { adminApi, handleApiError, documentsAdminApi, mediaUrl, showToast, auditAdminApi } from '../lib/api'
 import { ClipboardList, Hourglass, Cog, CheckCircle, PartyPopper, Smartphone, Package as PackageIcon, Search } from 'lucide-react'
+import { AdminPageShell, AdminPageHeader, AdminSection } from '../components/layout/Page'
 
 type Status = 'all' | 'pending' | 'processing' | 'ready' | 'completed' | 'picked_up'
 
@@ -18,6 +19,12 @@ export default function Requests() {
   const [editingDocType, setEditingDocType] = useState<any | null>(null)
   const [docTypeSubmitting, setDocTypeSubmitting] = useState(false)
   const [docTypeError, setDocTypeError] = useState<string | null>(null)
+  const [claimTokens, setClaimTokens] = useState<Record<string, { token?: string; code?: string }>>({})
+  const claimTokensRef = useRef<Record<string, { token?: string; code?: string }>>({})
+
+  useEffect(() => {
+    claimTokensRef.current = claimTokens
+  }, [claimTokens])
 
   useEffect(() => {
     let mounted = true
@@ -37,6 +44,13 @@ export default function Requests() {
               extra = JSON.parse(rawNotes)
             }
           } catch {}
+          const qrCodePath = r.qr_code || (r.claim?.qr_path) || null
+          const qrUrl = qrCodePath ? mediaUrl(qrCodePath) : null
+          const rowKey = String(r.id ?? r.request_number ?? '')
+          const storedClaim = claimTokensRef.current[rowKey] || {}
+          const ticketToken = storedClaim.token || (r.qr_data?.token)
+          const ticketLink = ticketToken ? `/verify-ticket?token=${encodeURIComponent(ticketToken)}` : null
+          const claimCodeMasked = storedClaim.code || (r.qr_data?.code_masked)
           return {
             id: r.request_number || r.id || 'REQ',
             resident: [r.user?.first_name, r.user?.last_name].filter(Boolean).join(' ') || 'Unknown',
@@ -54,7 +68,12 @@ export default function Requests() {
             resident_input: (r as any).resident_input,
             admin_edited_content: (r as any).admin_edited_content,
             additional_notes: r.additional_notes,
-            has_claim_token: !!(r as any).qr_code,
+            has_claim_token: !!((r as any).qr_code || ticketToken),
+            qr_code: qrCodePath,
+            qr_url: qrUrl,
+            ticket_token: ticketToken || null,
+            ticket_link: ticketLink,
+            claim_code_masked: claimCodeMasked || null,
           }
         })
         if (mounted) setRows(mapped)
@@ -136,6 +155,13 @@ export default function Requests() {
             extra = JSON.parse(rawNotes)
           }
         } catch {}
+        const qrCodePath = r.qr_code || (r.claim?.qr_path) || null
+        const qrUrl = qrCodePath ? mediaUrl(qrCodePath) : null
+        const rowKey = String(r.id ?? r.request_number ?? '')
+        const storedClaim = claimTokensRef.current[rowKey] || {}
+        const ticketToken = storedClaim.token || (r.qr_data?.token)
+        const ticketLink = ticketToken ? `/verify-ticket?token=${encodeURIComponent(ticketToken)}` : null
+        const claimCodeMasked = storedClaim.code || (r.qr_data?.code_masked)
         return {
           id: r.request_number || r.id || 'REQ',
           resident: [r.user?.first_name, r.user?.last_name].filter(Boolean).join(' ') || 'Unknown',
@@ -153,7 +179,12 @@ export default function Requests() {
           resident_input: (r as any).resident_input,
           admin_edited_content: (r as any).admin_edited_content,
           additional_notes: r.additional_notes,
-          has_claim_token: !!(r as any).qr_code,
+          has_claim_token: !!((r as any).qr_code || ticketToken),
+          qr_code: qrCodePath,
+          qr_url: qrUrl,
+          ticket_token: ticketToken || null,
+          ticket_link: ticketLink,
+          claim_code_masked: claimCodeMasked || null,
         }
       })
       setRows(mapped)
@@ -269,9 +300,47 @@ export default function Requests() {
   const handleGenerateClaim = async (row: any) => {
     try {
       setActionLoading(String(row.id))
-      await documentsAdminApi.claimToken(row.request_id)
+      const res = await documentsAdminApi.claimToken(row.request_id)
+      const data: any = res as any
+      const claim = data?.claim || data?.data?.claim
+      const updatedRequest = data?.request || data?.data?.request
+      if (claim?.token) {
+        const key = String(row.id)
+        setClaimTokens((prev) => {
+          const previous = prev[key] || {}
+          if (previous.token === claim.token && previous.code === claim.code_masked) return prev
+          return {
+            ...prev,
+            [key]: {
+              token: claim.token,
+              code: claim.code_masked ?? previous.code,
+            },
+          }
+        })
+        claimTokensRef.current = {
+          ...claimTokensRef.current,
+          [key]: {
+            token: claim.token,
+            code: claim.code_masked ?? claimTokensRef.current[key]?.code,
+          },
+        }
+      }
+      setRows((prev) => prev.map((r) => {
+        if (String(r.id) !== String(row.id)) return r
+        const qrPath = updatedRequest?.qr_code || r.qr_code
+        const qrUrl = claim?.qr_path ? mediaUrl(claim.qr_path) : qrPath ? mediaUrl(qrPath) : r.qr_url
+        return {
+          ...r,
+          has_claim_token: !!(qrPath || claim?.qr_path || r.has_claim_token),
+          qr_code: qrPath,
+          qr_url: qrUrl,
+          ticket_token: claim?.token || r.ticket_token,
+          ticket_link: claim?.token ? `/verify-ticket?token=${encodeURIComponent(claim.token)}` : r.ticket_link,
+          claim_code_masked: claim?.code_masked || r.claim_code_masked,
+        }
+      }))
       await refresh()
-      showToast('Claim token generated', 'success')
+      showToast(claim?.code_masked ? `Claim token generated. Code: ${claim.code_masked}` : 'Claim token generated', 'success')
     } catch (e: any) {
       showToast(handleApiError(e), 'error')
     } finally {
@@ -285,8 +354,46 @@ export default function Requests() {
     try {
       setActionLoading(String(row.id))
       const res = await documentsAdminApi.readyForPickup(row.request_id)
+      const data: any = res as any
+      const claim = data?.claim || data?.data?.claim
+      const updatedRequest = data?.request || data?.data?.request
+      if (claim?.token) {
+        const key = String(row.id)
+        setClaimTokens((prev) => {
+          const previous = prev[key] || {}
+          if (previous.token === claim.token && previous.code === claim.code_masked) return prev
+          return {
+            ...prev,
+            [key]: {
+              token: claim.token,
+              code: claim.code_masked ?? previous.code,
+            },
+          }
+        })
+        claimTokensRef.current = {
+          ...claimTokensRef.current,
+          [key]: {
+            token: claim.token,
+            code: claim.code_masked ?? claimTokensRef.current[key]?.code,
+          },
+        }
+      }
+      setRows((prev) => prev.map((r) => {
+        if (String(r.id) !== String(row.id)) return r
+        const qrPath = updatedRequest?.qr_code || r.qr_code
+        const qrUrl = claim?.qr_path ? mediaUrl(claim.qr_path) : qrPath ? mediaUrl(qrPath) : r.qr_url
+        return {
+          ...r,
+          status: 'ready',
+          has_claim_token: !!(qrPath || claim?.qr_path || r.has_claim_token),
+          qr_code: qrPath,
+          qr_url: qrUrl,
+          ticket_token: claim?.token || r.ticket_token,
+          ticket_link: claim?.token ? `/verify-ticket?token=${encodeURIComponent(claim.token)}` : r.ticket_link,
+          claim_code_masked: claim?.code_masked || r.claim_code_masked,
+        }
+      }))
       await refresh()
-      const claim = (res as any)?.claim || (res as any)?.data?.claim
       if (claim?.code_masked) {
         showToast(`Ready for pickup. Claim code: ${claim.code_masked}`, 'success')
       } else {
@@ -297,6 +404,31 @@ export default function Requests() {
     } finally {
       setActionLoading(null)
     }
+  }
+
+  const handleViewTicket = async (row: any) => {
+    if (row.delivery_method === 'digital') {
+      return handleViewPdf(row)
+    }
+    const stored = claimTokensRef.current[String(row.id)] || {}
+    const token = stored.token || row.ticket_token
+    if (token) {
+      window.open(`/verify-ticket?token=${encodeURIComponent(token)}`, '_blank', 'noopener')
+      return
+    }
+    if (row.ticket_link) {
+      window.open(row.ticket_link, '_blank', 'noopener')
+      return
+    }
+    if (row.qr_url) {
+      window.open(row.qr_url, '_blank', 'noopener')
+      return
+    }
+    if (row.qr_code) {
+      window.open(mediaUrl(row.qr_code), '_blank', 'noopener')
+      return
+    }
+    showToast('No ticket available yet. Generate a claim token first.', 'info')
   }
 
   const handlePickedUp = async (row: any) => {
@@ -347,109 +479,125 @@ export default function Requests() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-neutral-900 mb-2">Document Requests</h1>
-        <p className="text-neutral-600">Process and track resident document requests</p>
-      </div>
+    <AdminPageShell>
+      <AdminPageHeader
+        overline="Admin • Services"
+        title="Document Requests"
+        description="Process and track resident document requests across every status."
+        stats={[
+          { label: 'Total Requests', value: stats?.total_requests ?? '—' },
+          { label: 'Pending', value: stats?.pending_requests ?? '—' },
+          { label: 'Processing', value: stats?.processing_requests ?? '—' },
+          { label: 'Ready', value: stats?.ready_requests ?? '—' },
+          { label: 'Completed', value: stats?.completed_requests ?? '—' },
+        ]}
+      />
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 mb-8">
-        {[
-          { status: 'all', label: 'All Requests', count: stats?.total_requests ?? '—', icon: '📋', color: 'neutral' },
-          { status: 'pending', label: 'Pending Review', count: stats?.pending_requests ?? '—', icon: '⏳', color: 'yellow' },
-          { status: 'processing', label: 'Processing', count: stats?.processing_requests ?? '—', icon: '⚙️', color: 'ocean' },
-          { status: 'ready', label: 'Ready for Pickup', count: stats?.ready_requests ?? '—', icon: '✅', color: 'forest' },
-          { status: 'completed', label: 'Completed', count: stats?.completed_requests ?? '—', icon: '🎉', color: 'purple' },
-        ].map((item) => (
-          <button key={item.status} onClick={() => setStatusFilter(item.status as Status)} className={`text-left p-4 rounded-2xl transition-all ${statusFilter === item.status ? 'bg-white/90 backdrop-blur-xl shadow-xl scale-105 border-2 border-ocean-500' : 'bg-white/70 backdrop-blur-xl border border-white/50 hover:scale-105'}`}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-2xl">
-                {(() => {
-                  const code = String(item.icon)
-                  if (code === '📋') return <ClipboardList className="w-6 h-6" aria-hidden="true" />
-                  if (code === '⏳') return <Hourglass className="w-6 h-6" aria-hidden="true" />
-                  if (code === '⚙️') return <Cog className="w-6 h-6" aria-hidden="true" />
-                  if (code === '✅') return <CheckCircle className="w-6 h-6" aria-hidden="true" />
-                  if (code === '🎉') return <PartyPopper className="w-6 h-6" aria-hidden="true" />
-                  return <ClipboardList className="w-6 h-6" aria-hidden="true" />
-                })()}
-              </span>
-              <span className={`text-2xl font-bold ${statusFilter === item.status ? 'text-ocean-600' : 'text-neutral-900'}`}>{item.count}</span>
-            </div>
-            <p className="text-sm font-medium text-neutral-700">{item.label}</p>
-          </button>
-        ))}
-      </div>
+      <AdminSection padding="sm" borderlessHeader>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-5">
+          {[
+            { status: 'all', label: 'All Requests', count: stats?.total_requests ?? '—', icon: ClipboardList },
+            { status: 'pending', label: 'Pending Review', count: stats?.pending_requests ?? '—', icon: Hourglass },
+            { status: 'processing', label: 'Processing', count: stats?.processing_requests ?? '—', icon: Cog },
+            { status: 'ready', label: 'Ready for Pickup', count: stats?.ready_requests ?? '—', icon: CheckCircle },
+            { status: 'completed', label: 'Completed', count: stats?.completed_requests ?? '—', icon: PartyPopper },
+          ].map((item) => {
+            const Icon = item.icon
+            const active = statusFilter === item.status
+            return (
+              <button
+                key={item.status}
+                onClick={() => setStatusFilter(item.status as Status)}
+                className={`group relative overflow-hidden rounded-2xl border border-white/60 bg-white/90 p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean-500/70 ${active ? 'ring-2 ring-ocean-500/60 shadow-lg' : ''}`}
+              >
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-ocean-100/20 opacity-0 transition-opacity group-hover:opacity-100" />
+                <div className="relative flex items-center justify-between">
+                  <span className={`flex h-10 w-10 items-center justify-center rounded-xl bg-ocean-500/10 text-ocean-700 ${active ? 'bg-ocean-600/20 text-white' : ''}`}>
+                    <Icon className="h-5 w-5" aria-hidden="true" />
+                  </span>
+                  <span className={`text-2xl font-bold ${active ? 'text-ocean-600' : 'text-neutral-900'}`}>{item.count}</span>
+                </div>
+                <p className="relative mt-4 text-sm font-medium text-neutral-700">{item.label}</p>
+              </button>
+            )
+          })}
+        </div>
+      </AdminSection>
 
-      <div className="bg-white/70 backdrop-blur-xl rounded-3xl shadow-xl border border-white/50 overflow-hidden">
-        <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h2 className="text-xl font-bold text-neutral-900">Recent Requests</h2>
-          <div className="flex flex-col sm:flex-row gap-2">
+      <AdminSection
+        title="Recent Requests"
+        description="Review the latest submissions and keep residents informed."
+        actions={(
+          <div className="flex flex-col gap-2 sm:flex-row">
             <select
               name="deliveryFilter"
               id="requests-delivery-filter"
               aria-label="Filter by delivery method"
               value={deliveryFilter}
               onChange={(e) => setDeliveryFilter(e.target.value as any)}
-              className="px-4 py-2 bg-white border border-neutral-200 rounded-lg text-sm font-medium"
+              className="rounded-lg border border-white/80 bg-white/80 px-4 py-2 text-sm font-medium shadow-sm transition-all focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-500/20"
             >
               <option value="all">All Delivery Types</option>
               <option value="digital">Digital</option>
               <option value="pickup">Pickup</option>
             </select>
-            <button className="px-4 py-2 bg-white border border-neutral-200 hover:border-ocean-500 rounded-lg text-sm font-medium transition-all flex items-center gap-2" onClick={()=> setVerifyOpen(true)}>
-              <Search className="w-4 h-4" aria-hidden="true" /> Verify Ticket
+            <button
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/80 bg-white/80 px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm transition-colors hover:border-ocean-500 hover:text-ocean-700"
+              onClick={() => setVerifyOpen(true)}
+            >
+              <Search className="h-4 w-4" aria-hidden="true" />
+              Verify Ticket
             </button>
-            <button className="px-4 py-2 bg-white border border-neutral-200 hover:border-ocean-500 rounded-lg text-sm font-medium transition-all" onClick={openDocTypeManager}>
+            <button
+              className="rounded-lg border border-white/80 bg-white/80 px-4 py-2 text-sm font-medium text-neutral-700 shadow-sm transition-colors hover:border-ocean-500 hover:text-ocean-700"
+              onClick={openDocTypeManager}
+            >
               Manage Document Types
             </button>
-            <button className="px-4 py-2 bg-white border border-neutral-200 hover:border-ocean-500 rounded-lg text-sm font-medium transition-all flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-              Filter
-            </button>
           </div>
-        </div>
-
-        {error && <div className="px-6 py-3 text-sm text-red-700 bg-red-50 border-b border-red-200">{error}</div>}
+        )}
+        padding="none"
+      >
+        {error && <div className="px-6 py-3 text-sm text-red-700">{error}</div>}
         <div className="divide-y divide-neutral-200">
           {loading && (
             <div className="px-6 py-6">
-              <div className="h-6 w-40 skeleton rounded mb-4" />
+              <div className="mb-4 h-6 w-40 skeleton rounded" />
               <div className="space-y-2">{[...Array(5)].map((_, i) => (<div key={i} className="h-16 skeleton rounded" />))}</div>
             </div>
           )}
           {!loading && visibleRows.map((request) => (
-            <div key={request.id} id={`req-${request.request_id}`} className="px-6 py-5 hover:bg-ocean-50/30 transition-colors group">
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
-                <div className={`sm:col-span-1 w-1 h-6 sm:h-16 rounded-full ${request.priority === 'urgent' ? 'bg-red-500' : request.priority === 'high' ? 'bg-yellow-500' : 'bg-neutral-300'}`} />
-                <div className="sm:col-span-11 grid grid-cols-1 sm:grid-cols-12 gap-4 items-center min-w-0">
-                  <div className="sm:col-span-3 min-w-0">
-                    <p className="font-bold text-neutral-900 mb-1">{request.id}</p>
+            <div key={request.id} id={`req-${request.request_id}`} className="px-6 py-5 transition-colors hover:bg-ocean-50/30">
+              <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-12">
+                <div className={`h-6 w-1 rounded-full sm:col-span-1 sm:h-16 ${request.priority === 'urgent' ? 'bg-red-500' : request.priority === 'high' ? 'bg-yellow-500' : 'bg-neutral-300'}`} />
+                <div className="min-w-0 grid grid-cols-1 items-center gap-4 sm:col-span-11 sm:grid-cols-12">
+                  <div className="min-w-0 sm:col-span-3">
+                    <p className="mb-1 font-bold text-neutral-900">{request.id}</p>
                     <div className="flex items-center gap-2">
                       <p className="text-sm text-neutral-600">{request.document}</p>
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${request.delivery_method === 'digital' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${request.delivery_method === 'digital' ? 'bg-ocean-100 text-ocean-700' : 'bg-purple-100 text-purple-700'}`}>
                         {request.delivery_method === 'digital' ? (
                           <>
-                            <Smartphone className="w-3.5 h-3.5" aria-hidden="true" />
+                            <Smartphone className="h-3.5 w-3.5" aria-hidden="true" />
                             <span>Digital</span>
                           </>
                         ) : (
                           <>
-                            <PackageIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                            <PackageIcon className="h-3.5 w-3.5" aria-hidden="true" />
                             <span>Pickup</span>
                           </>
                         )}
                       </span>
                     </div>
                   </div>
-                  <div className="sm:col-span-2 min-w-0">
+                  <div className="min-w-0 sm:col-span-2">
                     <p className="text-sm text-neutral-700">{request.resident}</p>
                     <p className="text-xs text-neutral-600">Requester</p>
                   </div>
-                  <div className="sm:col-span-3 min-w-0">
-                    <p className="text-sm text-neutral-700 truncate">{request.purpose}</p>
+                  <div className="min-w-0 sm:col-span-3">
+                    <p className="truncate text-sm text-neutral-700">{request.purpose}</p>
                     {(request.civil_status || request.details) && (
-                      <p className="text-xs text-neutral-600 truncate">{[request.civil_status, request.details].filter(Boolean).join(' • ')}</p>
+                      <p className="truncate text-xs text-neutral-600">{[request.civil_status, request.details].filter(Boolean).join(' • ')}</p>
                     )}
                   </div>
                   <div className="sm:col-span-1">
@@ -457,32 +605,38 @@ export default function Requests() {
                     <p className="text-xs text-neutral-600">Submitted</p>
                   </div>
                   <div className="sm:col-span-2">
-                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-medium ${request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : request.status === 'processing' ? 'bg-ocean-100 text-ocean-700' : request.status === 'ready' ? 'bg-forest-100 text-forest-700' : request.status === 'picked_up' ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'}`}>
-                      {request.status === 'pending' && <Hourglass className="w-3.5 h-3.5" aria-hidden="true" />}
-                      {request.status === 'processing' && <Cog className="w-3.5 h-3.5" aria-hidden="true" />}
-                      {request.status === 'ready' && <CheckCircle className="w-3.5 h-3.5" aria-hidden="true" />}
-                      <span>{request.status === 'picked_up' ? 'Picked Up' : (request.status.charAt(0).toUpperCase() + request.status.slice(1))}</span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium sm:text-xs ${request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : request.status === 'processing' ? 'bg-ocean-100 text-ocean-700' : request.status === 'ready' ? 'bg-forest-100 text-forest-700' : request.status === 'picked_up' ? 'bg-emerald-100 text-emerald-700' : 'bg-purple-100 text-purple-700'}`}>
+                      {request.status === 'pending' && <Hourglass className="h-3.5 w-3.5" aria-hidden="true" />}
+                      {request.status === 'processing' && <Cog className="h-3.5 w-3.5" aria-hidden="true" />}
+                      {request.status === 'ready' && <CheckCircle className="h-3.5 w-3.5" aria-hidden="true" />}
+                      <span>{request.status === 'picked_up' ? 'Picked Up' : request.status.charAt(0).toUpperCase() + request.status.slice(1)}</span>
                     </span>
                   </div>
-                  <div className="sm:col-span-1 text-left sm:text-right space-y-2 sm:space-y-0 sm:flex sm:flex-wrap sm:justify-end sm:gap-2 relative">
+                  <div className="relative space-y-2 text-left sm:col-span-1 sm:flex sm:flex-wrap sm:justify-end sm:gap-2 sm:space-y-0 sm:text-right">
                     <button
-                      className="w-full sm:w-auto px-3 py-2 bg-white border border-neutral-200 hover:bg-neutral-50 text-neutral-800 rounded-lg text-xs sm:text-sm font-medium transition-colors"
-                      onClick={() => setMoreForId(moreForId===request.request_id?null:request.request_id)}
-                    >More</button>
-                    {moreForId===request.request_id && (
-                      <div className="absolute right-0 top-10 z-10 bg-white border border-neutral-200 rounded-lg shadow-md w-40 py-1">
-                        <button className="block w-full text-left px-3 py-2 text-xs hover:bg-neutral-50" onClick={async ()=> {
+                      className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-800 transition-colors hover:bg-neutral-50 sm:w-auto sm:text-sm"
+                      onClick={() => setMoreForId(moreForId === request.request_id ? null : request.request_id)}
+                    >
+                      More
+                    </button>
+                    {moreForId === request.request_id && (
+                      <div className="absolute right-0 top-10 z-10 w-40 rounded-lg border border-neutral-200 bg-white py-1 shadow-md">
+                        <button className="block w-full px-3 py-2 text-left text-xs hover:bg-neutral-50" onClick={async () => {
                           try {
-                            setLoadingHistory(true); setHistoryFor(request.request_id); setMoreForId(null)
+                            setLoadingHistory(true)
+                            setHistoryFor(request.request_id)
+                            setMoreForId(null)
                             const res = await auditAdminApi.list({ entity_type: 'document_request', entity_id: request.request_id, per_page: 50 })
-                            const data: any = (res as any)
+                            const data: any = res as any
                             setHistoryRows(data.logs || data.data?.logs || [])
-                          } finally { setLoadingHistory(false) }
+                          } finally {
+                            setLoadingHistory(false)
+                          }
                         }}>History</button>
                         {request.document_file && (
-                          <button className="block w-full text-left px-3 py-2 text-xs hover:bg-neutral-50" onClick={()=> { setMoreForId(null); handleViewPdf(request) }}>View Document</button>
+                          <button className="block w-full px-3 py-2 text-left text-xs hover:bg-neutral-50" onClick={() => { setMoreForId(null); handleViewPdf(request) }}>View Document</button>
                         )}
-                        <button className="block w-full text-left px-3 py-2 text-xs text-rose-700 hover:bg-rose-50" onClick={()=> { setMoreForId(null); openReject(request) }}>Reject</button>
+                        <button className="block w-full px-3 py-2 text-left text-xs text-rose-700 hover:bg-rose-50" onClick={() => { setMoreForId(null); openReject(request) }}>Reject</button>
                       </div>
                     )}
                     {(() => {
@@ -493,100 +647,161 @@ export default function Requests() {
                       const isReady = request.status === 'ready'
                       const isPickup = request.delivery_method === 'pickup'
                       const hasToken = !!request.has_claim_token
+                      const actions: Array<{ key: string; element: ReactNode }> = []
 
                       if (isPending) {
-                        return (
-                          <button
-                            onClick={() => handleApprove(request)}
-                            className="w-full sm:w-auto px-3 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-lg text-xs sm:text-sm font-medium transition-colors disabled:opacity-60"
-                            disabled={actionLoading === String(request.id)}
-                          >{actionLoading === String(request.id) ? 'Approving…' : 'Approve'}</button>
-                        )
-                      }
-
-                      if (isApproved) {
-                        return (
-                          <button
-                            onClick={() => handleStartProcessing(request)}
-                            className="w-full sm:w-auto px-3 py-2 bg-ocean-100 hover:bg-ocean-200 text-ocean-700 rounded-lg text-xs sm:text-sm font-medium transition-colors disabled:opacity-60"
-                            disabled={actionLoading === String(request.id)}
-                          >{actionLoading === String(request.id) ? 'Starting…' : 'Start Processing'}</button>
-                        )
-                      }
-
-                      if (isProcessing) {
+                        actions.push({
+                          key: 'approve',
+                          element: (
+                            <button
+                              onClick={() => handleApprove(request)}
+                              className="w-full rounded-lg bg-yellow-100 px-3 py-2 text-xs font-medium text-yellow-700 transition-colors hover:bg-yellow-200 disabled:opacity-60 sm:w-auto sm:text-sm"
+                              disabled={actionLoading === String(request.id)}
+                            >
+                              {actionLoading === String(request.id) ? 'Approving…' : 'Approve'}
+                            </button>
+                          ),
+                        })
+                      } else if (isApproved) {
+                        actions.push({
+                          key: 'start-processing',
+                          element: (
+                            <button
+                              onClick={() => handleStartProcessing(request)}
+                              className="w-full rounded-lg bg-ocean-100 px-3 py-2 text-xs font-medium text-ocean-700 transition-colors hover:bg-ocean-200 disabled:opacity-60 sm:w-auto sm:text-sm"
+                              disabled={actionLoading === String(request.id)}
+                            >
+                              {actionLoading === String(request.id) ? 'Starting…' : 'Start Processing'}
+                            </button>
+                          ),
+                        })
+                      } else if (isProcessing) {
                         if (isPickup) {
                           if (!hasToken) {
-                            return (
-                              <button
-                                onClick={() => handleGenerateClaim(request)}
-                                className="w-full sm:w-auto px-3 py-2 bg-forest-100 hover:bg-forest-200 text-forest-700 rounded-lg text-xs sm:text-sm font-medium transition-colors disabled:opacity-60"
-                                disabled={actionLoading === String(request.id)}
-                              >{actionLoading === String(request.id) ? 'Generating…' : 'Generate Claim Token'}</button>
-                            )
+                            actions.push({
+                              key: 'generate-claim',
+                              element: (
+                                <button
+                                  onClick={() => handleGenerateClaim(request)}
+                                  className="w-full rounded-lg bg-forest-100 px-3 py-2 text-xs font-medium text-forest-700 transition-colors hover:bg-forest-200 disabled:opacity-60 sm:w-auto sm:text-sm"
+                                  disabled={actionLoading === String(request.id)}
+                                >
+                                  {actionLoading === String(request.id) ? 'Generating…' : 'Generate Claim Token'}
+                                </button>
+                              ),
+                            })
+                          } else {
+                            actions.push({
+                              key: 'mark-ready',
+                              element: (
+                                <button
+                                  onClick={() => handleSetReady(request)}
+                                  className="w-full rounded-lg bg-forest-100 px-3 py-2 text-xs font-medium text-forest-700 transition-colors hover:bg-forest-200 disabled:opacity-60 sm:w-auto sm:text-sm"
+                                  disabled={actionLoading === String(request.id)}
+                                >
+                                  {actionLoading === String(request.id) ? 'Updating…' : 'Mark Ready for Pickup'}
+                                </button>
+                              ),
+                            })
                           }
-                          return (
-                            <button
-                              onClick={() => handleSetReady(request)}
-                              className="w-full sm:w-auto px-3 py-2 bg-forest-100 hover:bg-forest-200 text-forest-700 rounded-lg text-xs sm:text-sm font-medium transition-colors disabled:opacity-60"
-                              disabled={actionLoading === String(request.id)}
-                            >{actionLoading === String(request.id) ? 'Updating…' : 'Mark Ready for Pickup'}</button>
-                          )
+                        } else if (!hasPdf) {
+                          actions.push({
+                            key: 'edit-generate',
+                            element: (
+                              <button
+                                onClick={() => {
+                                  const edited = (request as any).admin_edited_content || {}
+                                  const resident = (request as any).resident_input || {}
+                                  const legacyNotes = (request as any).additional_notes
+                                  let remarks = ''
+                                  if (edited && edited.remarks) remarks = edited.remarks
+                                  else if (resident && resident.remarks) remarks = resident.remarks
+                                  else if (typeof legacyNotes === 'string') remarks = legacyNotes
+                                  const ageVal = edited?.age ?? resident?.age
+                                  setEditFor({
+                                    id: request.request_id,
+                                    purpose: edited?.purpose || request.purpose || '',
+                                    remarks: remarks || '',
+                                    civil_status: edited?.civil_status || request.civil_status || '',
+                                    age: ageVal !== undefined && ageVal !== null ? String(ageVal) : '',
+                                  })
+                                }}
+                                className="w-full rounded-lg bg-neutral-100 px-3 py-2 text-xs font-medium text-neutral-800 transition-colors hover:bg-neutral-200 sm:w-auto sm:text-sm"
+                              >
+                                Edit / Generate PDF
+                              </button>
+                            ),
+                          })
+                        } else {
+                          actions.push({
+                            key: 'mark-completed-processing',
+                            element: (
+                              <button
+                                onClick={() => handleComplete(request)}
+                                className="w-full rounded-lg bg-forest-100 px-3 py-2 text-xs font-medium text-forest-700 transition-colors hover:bg-forest-200 disabled:opacity-60 sm:w-auto sm:text-sm"
+                                disabled={actionLoading === String(request.id)}
+                              >
+                                {actionLoading === String(request.id) ? 'Completing…' : 'Mark Completed'}
+                              </button>
+                            ),
+                          })
                         }
-                        if (!hasPdf) {
-                          return (
-                            <button
-                              onClick={() => {
-                                const edited = (request as any).admin_edited_content || {}
-                                const resident = (request as any).resident_input || {}
-                                const legacyNotes = (request as any).additional_notes
-                                let remarks = ''
-                                if (edited && edited.remarks) remarks = edited.remarks
-                                else if (resident && resident.remarks) remarks = resident.remarks
-                                else if (typeof legacyNotes === 'string') remarks = legacyNotes
-                                const ageVal = (edited?.age ?? resident?.age)
-                                setEditFor({ id: request.request_id, purpose: (edited?.purpose || request.purpose || ''), remarks: remarks || '', civil_status: (edited?.civil_status || request.civil_status || ''), age: (ageVal !== undefined && ageVal !== null) ? String(ageVal) : '' })
-                              }}
-                              className="w-full sm:w-auto px-3 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-lg text-xs sm:text-sm font-medium transition-colors"
-                            >Edit / Generate PDF</button>
-                          )
-                        }
-                        return (
-                          <button
-                            onClick={() => handleComplete(request)}
-                            className="w-full sm:w-auto px-3 py-2 bg-forest-100 hover:bg-forest-200 text-forest-700 rounded-lg text-xs sm:text-sm font-medium transition-colors disabled:opacity-60"
-                            disabled={actionLoading === String(request.id)}
-                          >{actionLoading === String(request.id) ? 'Completing…' : 'Mark Completed'}</button>
-                        )
-                      }
-
-                      if (isReady) {
+                      } else if (isReady) {
                         if (isPickup) {
-                          return (
-                            <button
-                              onClick={() => handlePickedUp(request)}
-                              className="w-full sm:w-auto px-3 py-2 bg-emerald-100 hover:bg-emerald-200 text-emerald-700 rounded-lg text-xs sm:text-sm font-medium transition-colors disabled:opacity-60"
-                              disabled={actionLoading === String(request.id)}
-                            >{actionLoading === String(request.id) ? 'Saving…' : 'Mark Picked Up'}</button>
-                          )
+                          actions.push({
+                            key: 'mark-picked-up',
+                            element: (
+                              <button
+                                onClick={() => handlePickedUp(request)}
+                                className="w-full rounded-lg bg-emerald-100 px-3 py-2 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-200 disabled:opacity-60 sm:w-auto sm:text-sm"
+                                disabled={actionLoading === String(request.id)}
+                              >
+                                {actionLoading === String(request.id) ? 'Saving…' : 'Mark Picked Up'}
+                              </button>
+                            ),
+                          })
+                        } else {
+                          actions.push({
+                            key: 'mark-completed-ready',
+                            element: (
+                              <button
+                                onClick={() => handleComplete(request)}
+                                className="w-full rounded-lg bg-forest-100 px-3 py-2 text-xs font-medium text-forest-700 transition-colors hover:bg-forest-200 disabled:opacity-60 sm:w-auto sm:text-sm"
+                                disabled={actionLoading === String(request.id)}
+                              >
+                                {actionLoading === String(request.id) ? 'Completing…' : 'Mark Completed'}
+                              </button>
+                            ),
+                          })
                         }
-                        return (
-                          <>
-                            <button
-                              onClick={() => handleComplete(request)}
-                              className="w-full sm:w-auto px-3 py-2 bg-forest-100 hover:bg-forest-200 text-forest-700 rounded-lg text-xs sm:text-sm font-medium transition-colors disabled:opacity-60"
-                              disabled={actionLoading === String(request.id)}
-                            >{actionLoading === String(request.id) ? 'Completing…' : 'Mark Completed'}</button>
-                            <button
-                              onClick={() => handleViewPdf(request)}
-                              className="w-full sm:w-auto px-3 py-2 bg-white border border-neutral-200 hover:bg-neutral-50 text-neutral-800 rounded-lg text-xs sm:text-sm font-medium transition-colors disabled:opacity-60"
-                              disabled={actionLoading === String(request.id)}
-                            >{actionLoading === String(request.id) ? 'Opening…' : 'View Document'}</button>
-                          </>
-                        )
                       }
 
-                      return null
+                      const canViewTicket = request.delivery_method === 'digital'
+                        ? !!request.document_file
+                        : !!request.has_claim_token || !!request.ticket_link || !!request.qr_url || !!request.qr_code
+
+                      if (canViewTicket) {
+                        actions.push({
+                          key: 'view-ticket',
+                          element: (
+                            <button
+                              onClick={() => handleViewTicket(request)}
+                              className="w-full rounded-lg border border-neutral-200 bg-white px-3 py-2 text-xs font-medium text-neutral-800 transition-colors hover:bg-neutral-50 disabled:opacity-60 sm:w-auto sm:text-sm"
+                              disabled={actionLoading === String(request.id)}
+                            >
+                              {actionLoading === String(request.id) ? 'Opening…' : 'View Ticket'}
+                            </button>
+                          ),
+                        })
+                      }
+
+                      if (!actions.length) return null
+
+                      return actions.map(({ key, element }) => (
+                        <div key={key} className="w-full sm:w-auto">
+                          {element}
+                        </div>
+                      ))
                     })()}
                   </div>
                 </div>
@@ -594,7 +809,8 @@ export default function Requests() {
             </div>
           ))}
         </div>
-      </div>
+      </AdminSection>
+
       <Modal open={docTypeModalOpen} onOpenChange={(o) => { if (!o) closeDocTypeManager() }} title="Manage Document Types">
         <div className="space-y-4">
           {docTypeError && (
@@ -848,7 +1064,7 @@ export default function Requests() {
           </div>
         </div>
       )}
-    </div>
+    </AdminPageShell>
   )
 }
 

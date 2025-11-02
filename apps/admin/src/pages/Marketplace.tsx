@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { handleApiError, marketplaceApi, mediaUrl, transactionsAdminApi, userApi } from '../lib/api'
 import { useAdminStore } from '../lib/store'
 import type { AdminState } from '../lib/store'
-import { ShoppingBag, Store, BadgeDollarSign, Handshake, Gift, Check, X } from 'lucide-react'
+import { Store, BadgeDollarSign, Handshake, Gift, Check, X } from 'lucide-react'
+import { AdminPageShell, AdminPageHeader, AdminSection } from '../components/layout/Page'
 
 export default function Marketplace() {
   const [tab, setTab] = useState<'items' | 'transactions'>('items')
@@ -14,6 +15,12 @@ export default function Marketplace() {
   const adminMunicipalityName = useAdminStore((state: AdminState) => state.user?.admin_municipality_name || state.user?.municipality_name)
   const adminMunicipalityId = useAdminStore((state: AdminState) => state.user?.admin_municipality_id)
   const [reviewItem, setReviewItem] = useState<any | null>(null)
+  const headerStats = useMemo(() => ([
+    { label: 'Total Items', value: stats?.total_items ?? '—' },
+    { label: 'Pending', value: stats?.pending_items ?? '—' },
+    { label: 'Approved', value: stats?.approved_items ?? '—' },
+    { label: 'Rejected', value: stats?.rejected_items ?? '—' },
+  ]), [stats])
   // Status moderation removed; show available items by default
 
   useEffect(() => {
@@ -108,197 +115,213 @@ export default function Marketplace() {
   }, [tab, txStatus])
 
   return (
-    <div className="min-h-screen">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">Marketplace Management</h1>
-          <p className="text-neutral-600">Monitor and moderate community marketplace listings</p>
-        </div>
-        <div className="inline-flex rounded-xl border overflow-hidden">
-          <button className={`px-4 py-2 text-sm ${tab==='items'?'bg-ocean-600 text-white':'bg-white hover:bg-neutral-50'}`} onClick={()=>setTab('items')}>Items</button>
-          <button className={`px-4 py-2 text-sm ${tab==='transactions'?'bg-ocean-600 text-white':'bg-white hover:bg-neutral-50'}`} onClick={()=>setTab('transactions')}>Transactions</button>
-        </div>
-      </div>
+    <AdminPageShell>
+      <AdminPageHeader
+        overline="Admin • Commerce"
+        title="Marketplace"
+        description="Monitor and moderate community marketplace listings."
+        stats={headerStats}
+        kicker={adminMunicipalityName ? (
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/15 px-4 py-2 text-sm text-white/90">
+            <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm-2 6V6a2 2 0 114 0v2H8z" /></svg>
+            <span className="truncate">{adminMunicipalityName}</span>
+          </div>
+        ) : undefined}
+      />
 
-      {tab === 'items' && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-        {[
-          { icon: 'total', label: 'Total Items', value: String(stats?.total_items ?? '—'), color: 'ocean' },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-white/50 shadow-lg hover:-translate-y-1 transition-transform">
-            <div className={`inline-flex w-12 h-12 bg-${stat.color}-100 rounded-xl items-center justify-center mb-3`}>
-              {stat.icon === 'total' && <ShoppingBag className="w-6 h-6" aria-hidden="true" />}
-            </div>
-            <p className="text-3xl font-bold text-neutral-900 mb-1">{stat.value}</p>
-            <p className="text-sm text-neutral-600 mb-2">{stat.label}</p>
+      <AdminSection
+        title={tab === 'items' ? 'Marketplace Listings' : 'Transactions'}
+        description={tab === 'items' ? 'Browse resident listings by type and keep an eye on activity.' : 'Review transaction history and audit activity across the marketplace.'}
+        actions={(
+          <div className="inline-flex rounded-xl border border-white/80 bg-white/80 p-1 shadow-sm">
+            <button
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${tab === 'items' ? 'bg-ocean-600 text-white shadow' : 'text-neutral-700 hover:bg-neutral-100'}`}
+              onClick={() => setTab('items')}
+            >
+              Listings
+            </button>
+            <button
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${tab === 'transactions' ? 'bg-ocean-600 text-white shadow' : 'text-neutral-700 hover:bg-neutral-100'}`}
+              onClick={() => setTab('transactions')}
+            >
+              Transactions
+            </button>
           </div>
-        ))}
-      </div>
-      )}
-
-      {tab === 'items' && (
-      <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-4 sm:p-6 shadow-lg border border-white/60 mb-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex flex-wrap gap-2">
-            {[
-              { value: 'all', label: 'All Items', icon: 'store' },
-              { value: 'sell', label: 'For Sale', icon: 'money' },
-              { value: 'lend', label: 'For Lending', icon: 'handshake' },
-              { value: 'donate', label: 'Free', icon: 'gift' },
-            ].map((type) => (
-              <button key={type.value} onClick={() => setFilter(type.value as any)} className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${filter === type.value ? 'bg-ocean-gradient text-white shadow-lg' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}>
-                {type.icon === 'store' && <Store className="w-4 h-4" aria-hidden="true" />}
-                {type.icon === 'money' && <BadgeDollarSign className="w-4 h-4" aria-hidden="true" />}
-                {type.icon === 'handshake' && <Handshake className="w-4 h-4" aria-hidden="true" />}
-                {type.icon === 'gift' && <Gift className="w-4 h-4" aria-hidden="true" />}
-                <span>{type.label}</span>
-              </button>
-            ))}
-          </div>
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-xl text-sm font-medium">
-            <svg className="w-4 h-4 text-neutral-500" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm-2 6V6a2 2 0 114 0v2H8z"/></svg>
-            <span className="truncate max-w-[12rem]">{adminMunicipalityName || 'Municipality'}</span>
-          </div>
-        </div>
-      </div>
-      )}
-
-      {tab === 'items' && error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>}
-      {tab === 'items' && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-        {loading && [...Array(8)].map((_, i) => (
-          <div key={`skeleton-${i}`} className="bg-white rounded-2xl overflow-hidden shadow-lg p-4">
-            <div className="aspect-[4/3] skeleton rounded-xl mb-3" />
-            <div className="h-4 w-40 skeleton rounded mb-2" />
-            <div className="h-3 w-24 skeleton rounded" />
-          </div>
-        ))}
-        {!loading && filtered.map((item) => (
-          <div key={item.id} className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 flex flex-col">
-            <div className="relative aspect-[4/3] bg-neutral-100">
-              {item.image && (
-                <img
-                  src={mediaUrl(item.image)}
-                  alt={item.title}
-                  loading="lazy"
-                  className="absolute inset-0 w-full h-full object-contain"
-                />
-              )}
-              <div className="absolute top-3 left-3 z-10">
-                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold text-white backdrop-blur-md ${item.type === 'sell' ? 'bg-forest-500/90' : item.type === 'lend' ? 'bg-ocean-500/90' : 'bg-sunset-500/90'}`}>
-                  {item.type === 'sell' && <><BadgeDollarSign className="w-4 h-4" aria-hidden="true" /><span>For Sale</span></>}
-                  {item.type === 'lend' && <><Handshake className="w-4 h-4" aria-hidden="true" /><span>For Lending</span></>}
-                  {item.type === 'donate' && <><Gift className="w-4 h-4" aria-hidden="true" /><span>Free</span></>}
-                </span>
-              </div>
-              <div className="absolute bottom-3 left-3"><span className="inline-flex items-center gap-1 px-3 py-1 bg-forest-100 text-forest-700 rounded-full text-xs font-semibold"><Check className="w-4 h-4" aria-hidden="true" /> Active</span></div>
-            </div>
-            <div className="p-4 flex-1 flex flex-col">
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="font-bold text-neutral-900 line-clamp-2 flex-1 group-hover:text-ocean-600 transition-colors">{item.title}</h3>
-              </div>
-              <p className="text-xs text-neutral-600 mb-2">{item.category}</p>
-              {item.description && (
-                <p className="text-sm text-neutral-700 mb-3 line-clamp-3 whitespace-pre-line flex-1">{item.description}</p>
-              )}
-              <div className="flex items-center gap-2 mb-3 pb-3 border-b border-neutral-200">
-                {item.userPhoto ? (
-                  <img src={mediaUrl(item.userPhoto)} alt="profile" className="w-8 h-8 rounded-full object-cover border" />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-ocean-gradient text-white text-sm font-bold flex items-center justify-center border">
-                    {item.userInitial || 'U'}
-                  </div>
-                )}
-                <div className="text-xs text-neutral-700 truncate">{item.user}</div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-center mb-4">
-                <div><p className="text-xs text-neutral-600">Views</p><p className="text-sm font-bold text-neutral-900">{item.views}</p></div>
-                <div><p className="text-xs text-neutral-600">Inquiries</p><p className="text-sm font-bold text-neutral-900">{item.inquiries}</p></div>
-                <div><p className="text-xs text-neutral-600">Posted</p><p className="text-xs font-medium text-neutral-700">{item.posted}</p></div>
-              </div>
-              <div className="flex">
-                <button onClick={() => setReviewItem(item)} className="flex-1 py-2 bg-ocean-100 hover:bg-ocean-200 text-ocean-700 rounded-lg text-xs font-medium transition-colors">View</button>
-              </div>
-            </div>
-          </div>
-        ))}
-        {!loading && filtered.length === 0 && (
-          <div className="col-span-full text-center text-neutral-600 py-10">No items yet.</div>
         )}
-      </div>
-      )}
-
-
-      {tab === 'transactions' && (
-        <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-4 shadow-lg border border-white/50">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-lg font-semibold">Transactions</h2>
-            <select className="border rounded px-2 py-1" value={txStatus} onChange={(e)=>setTxStatus(e.target.value)}>
-              <option value="">All</option>
-              <option value="pending">pending</option>
-              <option value="awaiting_buyer">awaiting_buyer</option>
-              <option value="accepted">accepted</option>
-              <option value="handed_over">handed_over</option>
-              <option value="received">received</option>
-              <option value="returned">returned</option>
-              <option value="completed">completed</option>
-              <option value="disputed">disputed</option>
-            </select>
-          </div>
-          {txLoading ? (
-            <div>Loading…</div>
-          ) : (
-            <div className="overflow-auto">
-              <table className="w-full text-sm border">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left p-2 border">ID</th>
-                    <th className="text-left p-2 border">Item</th>
-                    <th className="text-left p-2 border">Type</th>
-                    <th className="text-left p-2 border">Buyer</th>
-                    <th className="text-left p-2 border">Seller</th>
-                    <th className="text-left p-2 border">Status</th>
-                    <th className="text-left p-2 border">Created</th>
-                    <th className="text-left p-2 border">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {txRows.map((r) => (
-                    <tr key={r.id} className="hover:bg-gray-50">
-                      <td className="p-2 border">{r.id}</td>
-                      <td className="p-2 border">{r.item_title || r.item_id}</td>
-                      <td className="p-2 border">{r.transaction_type}</td>
-                      <td className="p-2 border">{r.buyer_name || r.buyer_id}</td>
-                      <td className="p-2 border">{r.seller_name || r.seller_id}</td>
-                      <td className="p-2 border">{r.status}</td>
-                      <td className="p-2 border">{(r.created_at || '').slice(0, 19).replace('T',' ')}</td>
-                      <td className="p-2 border">
-                        <button className="text-xs px-2 py-1 border rounded" onClick={async ()=>{
-                          const res = await transactionsAdminApi.get(r.id)
-                          const tx = (res as any).transaction
-                          const audit = (res as any).audit || []
-                          try {
-                            const [b, s] = await Promise.allSettled([
-                              userApi.getUserById(Number(tx.buyer_id)),
-                              userApi.getUserById(Number(tx.seller_id)),
-                            ])
-                            const buyer = b.status === 'fulfilled' ? (b.value as any).data : undefined
-                            const seller = s.status === 'fulfilled' ? (s.value as any).data : undefined
-                            setSelectedTx({ tx: { ...tx, buyer, seller }, audit })
-                          } catch {
-                            setSelectedTx({ tx, audit })
-                          }
-                        }}>View</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {txRows.length === 0 && <div className="text-sm text-gray-600 mt-4">No transactions found.</div>}
+      >
+        {tab === 'items' ? (
+          <>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: 'all', label: 'All Items', icon: 'store' },
+                  { value: 'sell', label: 'For Sale', icon: 'money' },
+                  { value: 'lend', label: 'For Lending', icon: 'handshake' },
+                  { value: 'donate', label: 'Free', icon: 'gift' },
+                ].map((type) => (
+                  <button
+                    key={type.value}
+                    onClick={() => setFilter(type.value as any)}
+                    className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${filter === type.value ? 'bg-ocean-600 text-white shadow' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}
+                  >
+                    {type.icon === 'store' && <Store className="h-4 w-4" aria-hidden="true" />}
+                    {type.icon === 'money' && <BadgeDollarSign className="h-4 w-4" aria-hidden="true" />}
+                    {type.icon === 'handshake' && <Handshake className="h-4 w-4" aria-hidden="true" />}
+                    {type.icon === 'gift' && <Gift className="h-4 w-4" aria-hidden="true" />}
+                    <span>{type.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-600 shadow-sm">
+                <svg className="h-4 w-4 text-neutral-500" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm-2 6V6a2 2 0 114 0v2H8z" /></svg>
+                <span className="truncate max-w-[12rem]">{adminMunicipalityName || 'Municipality'}</span>
+              </div>
             </div>
-          )}
-        </div>
-      )}
+            {error && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+            <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+              {loading && [...Array(8)].map((_, i) => (
+                <div key={`skeleton-${i}`} className="rounded-2xl bg-white p-4 shadow-lg">
+                  <div className="mb-3 aspect-[4/3] rounded-xl skeleton" />
+                  <div className="mb-2 h-4 w-40 skeleton rounded" />
+                  <div className="h-3 w-24 skeleton rounded" />
+                </div>
+              ))}
+              {!loading && filtered.map((item) => (
+                <div key={item.id} className="group flex flex-col overflow-hidden rounded-2xl bg-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl">
+                  <div className="relative aspect-[4/3] bg-neutral-100">
+                    {item.image && (
+                      <img src={mediaUrl(item.image)} alt={item.title} loading="lazy" className="absolute inset-0 h-full w-full object-contain" />
+                    )}
+                    <div className="absolute left-3 top-3 z-10">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold text-white backdrop-blur-md ${item.type === 'sell' ? 'bg-forest-500/90' : item.type === 'lend' ? 'bg-ocean-500/90' : 'bg-sunset-500/90'}`}>
+                        {item.type === 'sell' && <><BadgeDollarSign className="h-4 w-4" aria-hidden="true" /><span>For Sale</span></>}
+                        {item.type === 'lend' && <><Handshake className="h-4 w-4" aria-hidden="true" /><span>For Lending</span></>}
+                        {item.type === 'donate' && <><Gift className="h-4 w-4" aria-hidden="true" /><span>Free</span></>}
+                      </span>
+                    </div>
+                    <div className="absolute bottom-3 left-3">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-forest-100 px-3 py-1 text-xs font-semibold text-forest-700"><Check className="h-4 w-4" aria-hidden="true" /> Active</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-1 flex-col p-4">
+                    <h3 className="mb-2 line-clamp-2 font-bold text-neutral-900 transition-colors group-hover:text-ocean-600">{item.title}</h3>
+                    <p className="mb-2 text-xs text-neutral-500">{item.category}</p>
+                    {item.description && (
+                      <p className="mb-3 flex-1 whitespace-pre-line text-sm text-neutral-700 line-clamp-3">{item.description}</p>
+                    )}
+                    <div className="mb-3 flex items-center gap-2 border-b border-neutral-200 pb-3 text-xs text-neutral-600">
+                      {item.userPhoto ? (
+                        <img src={mediaUrl(item.userPhoto)} alt="profile" className="h-8 w-8 rounded-full border object-cover" />
+                      ) : (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full border bg-ocean-gradient text-sm font-bold text-white">
+                          {item.userInitial || 'U'}
+                        </div>
+                      )}
+                      <span className="truncate">{item.user}</span>
+                    </div>
+                    <div className="mb-4 grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <p className="text-xs text-neutral-500">Views</p>
+                        <p className="text-sm font-bold text-neutral-900">{item.views}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">Inquiries</p>
+                        <p className="text-sm font-bold text-neutral-900">{item.inquiries}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-neutral-500">Posted</p>
+                        <p className="text-xs font-medium text-neutral-700">{item.posted}</p>
+                      </div>
+                    </div>
+                    <button onClick={() => setReviewItem(item)} className="rounded-lg bg-ocean-100 px-4 py-2 text-xs font-medium text-ocean-700 transition-colors hover:bg-ocean-200">View</button>
+                  </div>
+                </div>
+              ))}
+              {!loading && filtered.length === 0 && (
+                <div className="col-span-full rounded-2xl border border-dashed border-neutral-200 bg-neutral-50 py-10 text-center text-neutral-600">No items yet.</div>
+              )}
+            </div>
+          </>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-neutral-600">Filter transactions by status to focus on the right queue.</p>
+              <select
+                className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm font-medium text-neutral-700 shadow-sm transition focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-500/20"
+                value={txStatus}
+                onChange={(e) => setTxStatus(e.target.value)}
+              >
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="awaiting_buyer">Awaiting Buyer</option>
+                <option value="accepted">Accepted</option>
+                <option value="handed_over">Handed Over</option>
+                <option value="received">Received</option>
+                <option value="returned">Returned</option>
+                <option value="completed">Completed</option>
+                <option value="disputed">Disputed</option>
+              </select>
+            </div>
+            {txLoading ? (
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-6 text-sm text-neutral-600">Loading…</div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-neutral-200">
+                <table className="min-w-full divide-y divide-neutral-200 text-sm">
+                  <thead className="bg-neutral-50/80 text-left font-medium text-neutral-600">
+                    <tr>
+                      <th className="px-3 py-2">ID</th>
+                      <th className="px-3 py-2">Item</th>
+                      <th className="px-3 py-2">Type</th>
+                      <th className="px-3 py-2">Buyer</th>
+                      <th className="px-3 py-2">Seller</th>
+                      <th className="px-3 py-2">Status</th>
+                      <th className="px-3 py-2">Created</th>
+                      <th className="px-3 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-neutral-100">
+                    {txRows.map((r) => (
+                      <tr key={r.id} className="hover:bg-neutral-50">
+                        <td className="px-3 py-2 font-mono text-xs text-neutral-600">{r.id}</td>
+                        <td className="px-3 py-2 text-neutral-800">{r.item_title || r.item_id}</td>
+                        <td className="px-3 py-2 capitalize text-neutral-700">{r.transaction_type}</td>
+                        <td className="px-3 py-2 text-neutral-700">{r.buyer_name || r.buyer_id}</td>
+                        <td className="px-3 py-2 text-neutral-700">{r.seller_name || r.seller_id}</td>
+                        <td className="px-3 py-2 capitalize text-neutral-700">{r.status}</td>
+                        <td className="px-3 py-2 text-neutral-600">{(r.created_at || '').slice(0, 19).replace('T', ' ')}</td>
+                        <td className="px-3 py-2 text-right">
+                          <button
+                            className="inline-flex items-center gap-1 rounded-lg border border-ocean-200 px-3 py-1 text-xs font-medium text-ocean-700 transition hover:bg-ocean-50"
+                            onClick={async () => {
+                              const res = await transactionsAdminApi.get(r.id)
+                              const tx = (res as any).transaction
+                              const audit = (res as any).audit || []
+                              try {
+                                const [b, s] = await Promise.allSettled([
+                                  userApi.getUserById(Number(tx.buyer_id)),
+                                  userApi.getUserById(Number(tx.seller_id)),
+                                ])
+                                const buyer = b.status === 'fulfilled' ? (b.value as any).data : undefined
+                                const seller = s.status === 'fulfilled' ? (s.value as any).data : undefined
+                                setSelectedTx({ tx: { ...tx, buyer, seller }, audit })
+                              } catch {
+                                setSelectedTx({ tx, audit })
+                              }
+                            }}
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {txRows.length === 0 && <div className="p-4 text-sm text-neutral-600">No transactions found.</div>}
+              </div>
+            )}
+          </div>
+        )}
+      </AdminSection>
 
       {reviewItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" onKeyDown={(e) => { if (e.key === 'Escape') setReviewItem(null) }}>
@@ -432,7 +455,7 @@ export default function Marketplace() {
           </div>
         </div>
       )}
-    </div>
+    </AdminPageShell>
   )
 }
 

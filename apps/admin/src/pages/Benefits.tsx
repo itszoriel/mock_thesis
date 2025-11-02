@@ -4,6 +4,7 @@ import { useAdminStore } from '../lib/store'
 import type { AdminState } from '../lib/store'
 import { Modal, Button } from '@munlink/ui'
 import { ClipboardList, Users, Hourglass, CheckCircle } from 'lucide-react'
+import { AdminPageShell, AdminPageHeader } from '../components/layout/Page'
 
 type EligibilityEntry = { label: string; description: string }
 
@@ -247,6 +248,7 @@ export default function Benefits() {
     { icon: '⏳', label: 'Pending Applications', value: '—', color: 'sunset' },
     { icon: '✅', label: 'Approved This Month', value: '—', color: 'purple' },
   ]), [activeCount, beneficiariesTotal])
+  const headerStats = useMemo(() => stats.map(({ label, value }) => ({ label, value })), [stats])
 
   const updateApplicationStatus = async (
     appId: number,
@@ -338,17 +340,19 @@ export default function Benefits() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">Benefits & Programs</h1>
-          <p className="text-neutral-600">Manage government assistance and community programs</p>
-        </div>
-        <button onClick={openCreate} className="px-4 py-2 sm:px-6 sm:py-3 bg-forest-gradient hover:scale-105 text-white rounded-xl font-semibold transition-all shadow-lg flex items-center gap-2 w-full sm:w-auto" aria-haspopup="dialog" aria-controls="create-program-modal">
-          <span className="text-lg" aria-hidden>+</span>
-          Create New Program
-        </button>
-      </div>
+    <AdminPageShell>
+      <AdminPageHeader
+        overline="Admin • Community Support"
+        title="Benefits & Programs"
+        description="Manage government assistance and municipal support programs."
+        stats={headerStats}
+        actions={(
+          <Button onClick={openCreate} variant="primary" className="flex items-center gap-2" aria-controls="create-program-modal" aria-haspopup="dialog">
+            <span className="text-lg" aria-hidden>+</span>
+            Create New Program
+          </Button>
+        )}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-8">
         {stats.map((stat, i) => (
@@ -664,7 +668,7 @@ export default function Benefits() {
           <ProgramForm initial={{ name: '', code: '', description: '', program_type: 'general', duration_days: '', required_documents: [], eligibility_criteria: [] }} onCancel={closeCreate} onSubmit={submitCreate} submitting={actionLoading===-1} key="create" />
         </Modal>
       )}
-    </div>
+    </AdminPageShell>
   )
 }
 

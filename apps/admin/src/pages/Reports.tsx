@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { handleApiError, dashboardApi, userApi, marketplaceApi, announcementApi, documentsAdminApi } from '../lib/api'
 import ExportArchive from '../components/reports/ExportArchive.tsx'
 import AuditLogs from '../components/reports/AuditLogs.tsx'
+import { AdminPageShell, AdminPageHeader } from '../components/layout/Page'
 
 export default function Reports() {
   const [loading, setLoading] = useState(true)
@@ -50,6 +51,16 @@ export default function Reports() {
     { label: 'Documents Issued', value: String((report?.documents?.total_requests ?? report?.documents?.issued_total) ?? '—'), change: '+0%', trend: 'up', icon: '📄', color: 'purple' },
     { label: 'Active Announcements', value: String(report?.announcements?.active_announcements ?? '—'), change: '+0%', trend: 'up', icon: '📢', color: 'sunset' },
   ] as const), [report])
+  const headerStats = useMemo(() => (
+    loading
+      ? [
+          { label: 'Total Users', value: '…' },
+          { label: 'Active Listings', value: '…' },
+          { label: 'Documents Issued', value: '…' },
+          { label: 'Active Announcements', value: '…' },
+        ]
+      : metrics.map((metric) => ({ label: metric.label, value: metric.value }))
+  ), [loading, metrics])
 
   const documents = (report?.documents?.top_requested as any[]) || []
 
@@ -57,30 +68,37 @@ export default function Reports() {
   const growth = ((report as any)?.usersGrowth?.series as any[]) || []
 
   return (
-    <div className="min-h-screen">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-8">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-neutral-900 mb-2">Reports & Analytics</h1>
-          <p className="text-neutral-600">Platform insights and performance metrics</p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-          <select name="reportRange" id="report-range" aria-label="Select report date range" value={range} onChange={(e)=> setRange(e.target.value)} className="px-4 py-2 bg-white/70 backdrop-blur-xl border border-neutral-200 rounded-xl font-medium">
+    <AdminPageShell>
+      <AdminPageHeader
+        overline="Admin • Reports"
+        title="Reports & Analytics"
+        description="Platform insights and performance metrics."
+        stats={headerStats}
+        actions={(
+          <select
+            name="reportRange"
+            id="report-range"
+            aria-label="Select report date range"
+            value={range}
+            onChange={(e) => setRange(e.target.value)}
+            className="rounded-xl border border-neutral-200 bg-white/80 px-4 py-2 font-medium shadow-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-500/20"
+          >
             <option value="last_7_days">Last 7 days</option>
             <option value="last_30_days">Last 30 days</option>
             <option value="last_90_days">Last 90 days</option>
             <option value="this_year">This Year</option>
           </select>
-        </div>
-      </div>
+        )}
+      />
 
-      {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>}
+      {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
 
       <div className="mb-6 inline-flex rounded-xl border overflow-hidden">
         {(['overview','export','audit'] as const).map((t) => (
           <button key={t} onClick={()=> setTab(t)} className={`px-4 py-2 text-sm ${tab===t?'bg-ocean-600 text-white':'bg-white hover:bg-neutral-50'}`}>{t==='overview'?'Overview':t==='export'?'Export & Archive':'Audit Logs'}</button>
         ))}
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mb-8">
+      <div className="mb-8 grid grid-cols-2 gap-6 sm:grid-cols-4">
         {(loading ? [...Array(4)] : metrics).map((metric: any, i: number) => (
           <div key={i} className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-white/50 shadow-lg hover:scale-105 transition-transform">
             {loading ? (
@@ -104,7 +122,7 @@ export default function Reports() {
       </div>
 
       {tab==='overview' && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="overflow-hidden rounded-3xl shadow-xl border border-white/50 bg-gradient-to-br from-ocean-600 via-ocean-500 to-forest-600">
           <div className="px-6 py-5 border-b border-white/20">
             <h2 className="text-xl font-bold text-white">User Growth</h2>
@@ -186,7 +204,7 @@ export default function Reports() {
       </div>
       )}
 
-      <div className="bg-white/70 backdrop-blur-xl rounded-3xl shadow-xl border border-white/50 overflow-hidden mb-8">
+      <div className="mb-8 overflow-hidden rounded-3xl border border-white/50 bg-white/70 shadow-xl backdrop-blur">
         <div className="px-6 py-5 border-b border-neutral-200"><h2 className="text-xl font-bold text-neutral-900">Document Requests</h2><p className="text-sm text-neutral-600 mt-1">Most requested documents</p></div>
         <div className="p-6">
           {loading ? (
@@ -217,7 +235,7 @@ export default function Reports() {
       )}
 
       
-    </div>
+    </AdminPageShell>
   )
 }
 
