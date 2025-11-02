@@ -5,6 +5,128 @@ import type { AdminState } from '../lib/store'
 import { Modal, Button } from '@munlink/ui'
 import { ClipboardList, Users, Hourglass, CheckCircle } from 'lucide-react'
 
+type EligibilityEntry = { label: string; description: string }
+
+const ELIGIBILITY_LABEL_KEYS = ['label', 'title', 'heading', 'name']
+const ELIGIBILITY_TEXT_KEYS = ['description', 'text', 'value', 'details', 'info']
+
+const formatEligibilityKey = (key: string): string =>
+  key
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+
+const parseEligibilityEntries = (raw: any): EligibilityEntry[] => {
+  const entries: EligibilityEntry[] = []
+
+  const push = (label: string, description: string) => {
+    const trimmedLabel = (label || '').trim()
+    const trimmedDesc = (description || '').trim()
+    if (!trimmedLabel && !trimmedDesc) return
+    entries.push({ label: trimmedLabel, description: trimmedDesc })
+  }
+
+  const walk = (value: any) => {
+    if (value == null) return
+    if (Array.isArray(value)) {
+      value.forEach((item) => walk(item))
+      return
+    }
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (!trimmed) return
+      const colonIndex = trimmed.indexOf(':')
+      if (colonIndex > -1 && colonIndex < trimmed.length - 1) {
+        push(trimmed.slice(0, colonIndex), trimmed.slice(colonIndex + 1))
+      } else {
+        push('', trimmed)
+      }
+      return
+    }
+    if (typeof value === 'number') {
+      push('', String(value))
+      return
+    }
+    if (typeof value === 'boolean') {
+      push('', value ? 'Yes' : 'No')
+      return
+    }
+    if (typeof value === 'object') {
+      const obj = value as Record<string, any>
+      const labelCandidate = ELIGIBILITY_LABEL_KEYS.find((key) => {
+        const candidate = obj[key]
+        return typeof candidate === 'string' && candidate.trim().length > 0
+      })
+      const textCandidate = ELIGIBILITY_TEXT_KEYS.find((key) => {
+        const candidate = obj[key]
+        return typeof candidate === 'string' && candidate.trim().length > 0
+      })
+
+      if (labelCandidate || textCandidate) {
+        push(
+          labelCandidate ? String(obj[labelCandidate]) : '',
+          textCandidate ? String(obj[textCandidate]) : ''
+        )
+      }
+
+      Object.keys(obj).forEach((key) => {
+        if (ELIGIBILITY_LABEL_KEYS.includes(key) || ELIGIBILITY_TEXT_KEYS.includes(key)) return
+        const child = obj[key]
+        if (typeof child === 'string') {
+          const trimmed = child.trim()
+          if (trimmed) push(formatEligibilityKey(key), trimmed)
+        } else if (typeof child === 'number') {
+          push(formatEligibilityKey(key), String(child))
+        } else if (typeof child === 'boolean') {
+          push(formatEligibilityKey(key), child ? 'Yes' : 'No')
+        } else if (child != null) {
+          walk(child)
+        }
+      })
+
+      return
+    }
+  }
+
+  walk(raw)
+  return entries
+}
+
+const eligibilityEntriesToDisplay = (raw: any): string[] =>
+  parseEligibilityEntries(raw).map((entry) =>
+    entry.label && entry.description
+      ? `${entry.label}: ${entry.description}`
+      : entry.label || entry.description
+  )
+
+const buildEligibilityPayload = (entries: EligibilityEntry[]): any => {
+  const trimmed = entries
+    .map((entry) => ({ label: entry.label.trim(), description: entry.description.trim() }))
+    .filter((entry) => entry.label || entry.description)
+
+  if (trimmed.length === 0) return []
+
+  const allHaveLabel = trimmed.every((entry) => entry.label)
+  const allWithoutLabel = trimmed.every((entry) => !entry.label)
+
+  if (allHaveLabel) {
+    return trimmed.reduce<Record<string, string>>((acc, entry) => {
+      acc[entry.label] = entry.description || ''
+      return acc
+    }, {})
+  }
+
+  if (allWithoutLabel) {
+    return trimmed.map((entry) => entry.description)
+  }
+
+  return trimmed.map((entry) => ({
+    ...(entry.label ? { label: entry.label } : {}),
+    description: entry.description || '',
+  }))
+}
+
 export default function Benefits() {
   const [activeTab, setActiveTab] = useState<'active' | 'applications' | 'archived'>('active')
   const [loading, setLoading] = useState(true)
@@ -29,6 +151,8 @@ export default function Benefits() {
       ? program.required_documents
       : (Array.isArray(program.requirements) ? program.requirements : [])
     const beneficiaries = Number(program.current_beneficiaries ?? program.beneficiaries ?? 0)
+    const eligibilityDisplay = eligibilityEntriesToDisplay(program.eligibility_criteria)
+    const eligibilityEntries = parseEligibilityEntries(program.eligibility_criteria)
     return {
       id: program.id,
       code: program.code,
@@ -44,6 +168,8 @@ export default function Benefits() {
       color: 'ocean',
       required_documents: requiredList,
       eligibility_criteria: program.eligibility_criteria,
+      eligibility_entries: eligibilityEntries,
+      eligibility_display: eligibilityDisplay,
       program_type: program.program_type,
       raw: program,
     }
@@ -245,7 +371,21 @@ export default function Benefits() {
                 )}
               </div>
               <div className="relative flex gap-2">
-                <button onClick={async () => { try { const res = await benefitsApi.getProgramById(program.id); setViewProgram((res as any)?.data || res) } catch (e: any) { setError(handleApiError(e)) } }} className="flex-1 py-2 bg-ocean-100 hover:bg-ocean-200 text-ocean-700 rounded-xl text-sm font-medium transition-colors">View Details</button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await benefitsApi.getProgramById(program.id)
+                      const detail = (res as any)?.data || res
+                      const normalized = normalizeProgram(detail) || program
+                      setViewProgram({ ...normalized, raw: detail })
+                    } catch (e: any) {
+                      setError(handleApiError(e))
+                    }
+                  }}
+                  className="flex-1 py-2 bg-ocean-100 hover:bg-ocean-200 text-ocean-700 rounded-xl text-sm font-medium transition-colors"
+                >
+                  View Details
+                </button>
                 <button onClick={() => { setViewProgram({ ...program, _edit: true }) }} className="flex-1 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-sm font-medium transition-colors">Edit</button>
                 <button onClick={async ()=>{
                   try {
@@ -363,6 +503,7 @@ export default function Benefits() {
                 program_type: viewProgram.program_type || 'general',
                 duration_days: viewProgram.duration_days ?? '',
                 required_documents: viewProgram.required_documents || [],
+                  eligibility_criteria: viewProgram.eligibility_criteria ?? viewProgram.raw?.eligibility_criteria ?? [],
               }}
               onCancel={()=> setViewProgram(null)}
                 onSubmit={async (data)=>{
@@ -383,6 +524,9 @@ export default function Benefits() {
                         duration_days: data.duration_days ?? p.duration_days,
                         required_documents: data.required_documents ?? p.required_documents,
                         program_type: data.program_type ?? p.program_type,
+                        eligibility_criteria: data.eligibility_criteria ?? p.eligibility_criteria,
+                        eligibility_display: eligibilityEntriesToDisplay(data.eligibility_criteria ?? p.eligibility_criteria),
+                        eligibility_entries: parseEligibilityEntries(data.eligibility_criteria ?? p.eligibility_criteria),
                       } : p))
                     }
                     setViewProgram(null)
@@ -400,6 +544,16 @@ export default function Benefits() {
               <p className="text-sm text-neutral-700"><span className="font-medium">Type:</span> {viewProgram.program_type || '—'}</p>
               {Number(viewProgram.duration_days) > 0 && (<p className="text-sm text-neutral-700"><span className="font-medium">Duration:</span> {viewProgram.duration_days} days</p>)}
               <p className="text-sm text-neutral-700 whitespace-pre-wrap"><span className="font-medium">Description:</span> {viewProgram.description}</p>
+              {Array.isArray(viewProgram.eligibility_display) && viewProgram.eligibility_display.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-neutral-700">Eligibility Criteria</p>
+                  <ul className="list-disc list-inside text-sm text-neutral-600">
+                    {viewProgram.eligibility_display.map((item: string, idx: number) => (
+                      <li key={idx}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {Array.isArray(viewProgram.required_documents) && viewProgram.required_documents.length > 0 && (
                 <div>
                   <p className="text-sm font-medium text-neutral-700">Requirements</p>
@@ -446,7 +600,7 @@ export default function Benefits() {
       {/* Create Modal */}
       {createOpen && (
         <Modal open={true} onOpenChange={(o)=>{ if(!o) setCreateOpen(false) }} title="Create Program" className="" >
-          <ProgramForm initial={{ name: '', code: '', description: '', program_type: 'general', duration_days: '', required_documents: [] }} onCancel={closeCreate} onSubmit={submitCreate} submitting={actionLoading===-1} key="create" />
+          <ProgramForm initial={{ name: '', code: '', description: '', program_type: 'general', duration_days: '', required_documents: [], eligibility_criteria: [] }} onCancel={closeCreate} onSubmit={submitCreate} submitting={actionLoading===-1} key="create" />
         </Modal>
       )}
     </div>
@@ -463,6 +617,7 @@ function ProgramForm({ initial, onCancel, onSubmit, submitting }: { initial: any
     program_type: 'general',
     duration_days: '',
     required_documents: [] as string[],
+    eligibility_criteria: [] as any,
   }
   const merged = { ...defaults, ...(initial || {}) }
   const [form, setForm] = useState<any>(merged)
@@ -470,6 +625,10 @@ function ProgramForm({ initial, onCancel, onSubmit, submitting }: { initial: any
     const list = Array.isArray(merged.required_documents) ? merged.required_documents : []
     const filtered = list.filter((item: string) => !!item).slice(0, 5)
     return filtered.length > 0 ? filtered : ['']
+  })
+  const [eligibility, setEligibility] = useState<EligibilityEntry[]>(() => {
+    const parsed = parseEligibilityEntries(merged.eligibility_criteria)
+    return parsed.length > 0 ? parsed : [{ label: '', description: '' }]
   })
 
   const updateRequirement = (index: number, value: string) => {
@@ -491,6 +650,25 @@ function ProgramForm({ initial, onCancel, onSubmit, submitting }: { initial: any
     })
   }
 
+  const updateEligibility = (index: number, field: 'label' | 'description', value: string) => {
+    setEligibility((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], [field]: value }
+      return next
+    })
+  }
+
+  const addEligibility = () => {
+    setEligibility((prev) => (prev.length >= 10 ? prev : [...prev, { label: '', description: '' }]))
+  }
+
+  const removeEligibility = (index: number) => {
+    setEligibility((prev) => {
+      const next = prev.filter((_, i) => i !== index)
+      return next.length === 0 ? [{ label: '', description: '' }] : next
+    })
+  }
+
   const disabled = !(form.name && form.code && form.description)
 
   return (
@@ -504,6 +682,7 @@ function ProgramForm({ initial, onCancel, onSubmit, submitting }: { initial: any
           duration_days: form.duration_days === '' ? undefined : Number(form.duration_days),
           required_documents: requirements.map((r) => String(r || '').trim()).filter(Boolean).slice(0, 5),
         }
+        payload.eligibility_criteria = buildEligibilityPayload(eligibility)
         onSubmit(payload)
       }}
       className="space-y-3"
@@ -529,6 +708,52 @@ function ProgramForm({ initial, onCancel, onSubmit, submitting }: { initial: any
       <div>
         <label className="block text-sm font-medium text-neutral-700 mb-1" htmlFor="program-desc">Description</label>
         <textarea id="program-desc" value={form.description} onChange={(e)=> setForm((p:any)=> ({ ...p, description: e.target.value }))} className="w-full px-3 py-2 border border-neutral-300 rounded-md" rows={5} required />
+      </div>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-sm font-medium text-neutral-700">Eligibility Criteria</label>
+          <button
+            type="button"
+            className="px-2 py-1 text-xs bg-neutral-100 hover:bg-neutral-200 rounded"
+            onClick={addEligibility}
+            disabled={eligibility.length >= 10}
+          >
+            Add criterion
+          </button>
+        </div>
+        <div className="space-y-3">
+          {eligibility.map((entry, index) => (
+            <div key={index} className="border border-neutral-200 rounded-lg p-3 space-y-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  value={entry.label}
+                  onChange={(e) => updateEligibility(index, 'label', e.target.value)}
+                  className="flex-1 border border-neutral-300 rounded-md px-3 py-2 text-sm"
+                  placeholder="Label (e.g., Residency, Income Bracket)"
+                />
+                <textarea
+                  value={entry.description}
+                  onChange={(e) => updateEligibility(index, 'description', e.target.value)}
+                  className="flex-[2] border border-neutral-300 rounded-md px-3 py-2 text-sm"
+                  rows={2}
+                  placeholder="Details shown to residents"
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs text-neutral-500">
+                <span>Leave label blank for simple bullet points.</span>
+                <button
+                  type="button"
+                  className="text-rose-600 hover:text-rose-700"
+                  onClick={() => removeEligibility(index)}
+                  disabled={eligibility.length <= 1 && !eligibility[index].label && !eligibility[index].description}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-neutral-500 mt-1">Residents see these criteria before starting an application.</p>
       </div>
       <div>
         <label className="block text-sm font-medium text-neutral-700 mb-1" htmlFor="program-duration">Duration (days)</label>
