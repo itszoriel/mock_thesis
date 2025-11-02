@@ -3,15 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --color-primary: #2563eb;
+  --color-primary: #0ea5e9;
   --color-primary-foreground: #ffffff;
-  /* Light theme surface and card colors for admin */
-  --color-surface: #f8fafc; /* slate-50 */
-  --color-surface-foreground: #0f172a; /* slate-900 */
-  --color-card: #ffffff; /* white */
-  --color-card-foreground: #111827; /* gray-900 */
-  --color-border: #e5e7eb; /* gray-200 */
-  --color-muted: #64748b; /* slate-500 */
+  --color-surface: #f8fafc;
+  --color-surface-foreground: #0f172a;
+  --color-card: #ffffff;
+  --color-card-foreground: #111827;
+  --color-border: #e2e8f0;
+  --color-muted: #64748b;
   --ring: var(--color-primary);
 }
 
@@ -21,19 +20,20 @@
 }
 
 @layer components {
-  .card { @apply bg-white bg-opacity-70 backdrop-blur-xl border border-white border-opacity-50 rounded-xl shadow-2xl min-w-0; }
-  .input-field { @apply w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ocean-500; }
-  .btn-primary { @apply btn bg-ocean-600 text-white hover:bg-ocean-700 transition-colors; }
-  .btn { @apply inline-flex items-center justify-center min-h-[44px] px-3 py-2 text-sm md:text-base gap-2 whitespace-normal break-words; }
-  .btn-ghost { @apply inline-flex items-center justify-center min-h-[44px] px-3 py-2 text-neutral-700 hover:bg-neutral-50; }
+  .card { @apply bg-white/80 backdrop-blur-xl border border-white/60 rounded-2xl shadow-lg min-w-0; }
+  .input-field { @apply w-full rounded-lg border border-neutral-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ocean-500 focus:border-ocean-500 transition; }
+  .btn { @apply inline-flex items-center justify-center min-h-[44px] px-3 py-2 text-sm md:text-base gap-2 whitespace-normal break-words rounded-xl font-medium; }
+  .btn-primary { @apply btn bg-ocean-600 text-white hover:bg-ocean-700 transition-colors shadow-sm; }
+  .btn-secondary { @apply btn bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-50; }
+  .btn-ghost { @apply btn text-neutral-700 hover:bg-neutral-50; }
   .responsive-img { @apply w-full h-auto object-cover; }
   .container-responsive { @apply mx-auto max-w-screen-xl px-3 sm:px-4 lg:px-6; }
   /* Icon button utilities for compact table actions */
-  .icon-btn { @apply inline-flex items-center justify-center h-8 w-8 rounded-md border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition disabled:opacity-50; }
+  .icon-btn { @apply inline-flex items-center justify-center h-8 w-8 rounded-lg border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 transition disabled:opacity-50; }
   .icon-btn.primary { @apply border-ocean-200 bg-ocean-600 text-white hover:bg-ocean-700; }
   .icon-btn.success { @apply border-forest-200 bg-forest-600 text-white hover:bg-forest-700; }
   .icon-btn.danger { @apply border-red-200 bg-red-600 text-white hover:bg-red-700; }
-  .chip-locked { @apply px-4 py-2 bg-neutral-50 border border-neutral-200 rounded-xl font-medium flex items-center gap-2; }
+  .chip-locked { @apply px-4 py-2 bg-white/80 border border-neutral-200 rounded-xl font-medium flex items-center gap-2 shadow-sm; }
   /* Normalize DataTable vertical alignment */
   .data-table thead th { vertical-align: middle; }
   .data-table thead th, .data-table tbody td { height: 40px; }

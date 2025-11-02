@@ -214,27 +214,44 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="pt-0">
-        <div className="">
+    <div className="min-h-screen bg-surface">
+      <div className="py-8">
+        <div className="container-responsive space-y-8">
           {error && (
-            <div className="mb-4 rounded-md border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>
+            <div className="rounded-2xl border border-red-200 bg-red-50/80 text-red-700 px-4 py-3 text-sm shadow-sm">{error}</div>
           )}
           {/* Welcome Banner */}
-          <div className="mb-8 bg-ocean-gradient text-white rounded-3xl p-8 relative overflow-visible">
-            <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl" />
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-            <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="min-w-0">
-                <h1 className="text-3xl font-bold mb-2 inline-flex items-center gap-2">Welcome back, {user?.first_name}! <Hand className="w-6 h-6" aria-hidden="true" /></h1>
-                <p className="text-ocean-100 text-lg">{user?.admin_municipality_name || 'Admin'} Dashboard • {dateStr}</p>
+          <div className="relative overflow-hidden rounded-3xl border border-white/40 bg-gradient-to-br from-ocean-500 via-ocean-400 to-forest-500 text-white shadow-xl">
+            <div className="absolute -top-20 -right-16 w-64 h-64 bg-white/20 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 left-0 w-72 h-72 bg-black/10 rounded-full blur-3xl" />
+            <div className="relative z-10 px-6 py-8 sm:px-10 sm:py-12 flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0 space-y-2">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1 text-sm font-medium">
+                  Admin Portal <span className="text-white/70">•</span> {dateStr}
+                </span>
+                <h1 className="text-3xl sm:text-4xl font-serif font-semibold flex items-center gap-3">
+                  Hey {user?.first_name}! <Hand className="h-8 w-8" aria-hidden="true" />
+                </h1>
+                <p className="text-white/85 text-lg max-w-xl">You are managing {user?.admin_municipality_name || 'Zambales Province'}. Here’s what’s happening today.</p>
               </div>
-              <div className="flex flex-col xs:flex-row gap-3 w-full sm:w-auto"></div>
+              <div className="grid grid-cols-2 gap-3 min-w-[220px]">
+                {[
+                  { label: 'Residents', value: dash?.pending_verifications ?? 0 },
+                  { label: 'Issues', value: dash?.active_issues ?? 0 },
+                  { label: 'Marketplace', value: dash?.marketplace_items ?? 0 },
+                  { label: 'Announcements', value: dash?.announcements ?? 0 },
+                ].map((stat, i) => (
+                  <div key={i} className="rounded-2xl bg-white/15 px-4 py-3 text-center shadow-sm">
+                    <p className="text-lg font-semibold">{loading ? '…' : stat.value}</p>
+                    <p className="text-xs uppercase tracking-wide text-white/70">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard title="Pending Verifications" value={loading ? '…' : (dash?.pending_verifications ?? 0)} />
             <StatCard title="Active Issues" value={loading ? '…' : (dash?.active_issues ?? 0)} />
             <StatCard title="Marketplace Items" value={loading ? '…' : (dash?.marketplace_items ?? 0)} />
@@ -242,9 +259,9 @@ export default function Dashboard() {
           </div>
 
           {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
             {/* Left - Pending Verifications */}
-            <Card className="lg:col-span-2" title={<span className="text-xl font-bold">Pending User Verifications</span>} subtitle="Review and approve user registrations" actions={<Button variant="secondary" size="sm" onClick={() => navigate('/residents')}>View All</Button>}>
+            <Card className="xl:col-span-2" title={<span className="text-xl font-semibold text-neutral-900">Pending User Verifications</span>} subtitle="Review and approve user registrations" actions={<Button variant="secondary" size="sm" onClick={() => navigate('/residents')}>View All</Button>}>
               <UserVerificationList 
                 onUserVerified={reloadStats} 
                 onUserRejected={reloadStats}
@@ -253,8 +270,8 @@ export default function Dashboard() {
             </Card>
 
             {/* Right - Announcements */}
-            <Card title={<span className="text-xl font-bold">Announcements</span>} subtitle="Create and manage public announcements">
-              <Button fullWidth className="mb-6" onClick={() => navigate('/announcements')}>+ Create Announcement</Button>
+            <Card title={<span className="text-xl font-semibold text-neutral-900">Announcements</span>} subtitle="Create and manage public announcements">
+              <Button variant="primary" fullWidth className="mb-4" onClick={() => navigate('/announcements')}>+ Create Announcement</Button>
               {recentAnnouncements.length > 0 ? (
                 <div className="space-y-3">
                   {recentAnnouncements.map((a, i) => (
@@ -279,13 +296,13 @@ export default function Dashboard() {
           </div>
 
           {/* Additional Sections */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
             {/* Recent Activity */}
-            <Card title={<span className="text-xl font-bold">Recent Activity</span>}>
+            <Card title={<span className="text-xl font-semibold text-neutral-900">Recent Activity</span>}>
               <div className="space-y-4">
                 {visibleActivity.map((a, i) => (
-                  <div key={`${a.text}-${a.ts}-${i}`} className="flex items-start gap-3 p-3 bg-neutral-50 rounded-xl hover:bg-neutral-100 transition-colors">
-                    <div className={`w-10 h-10 bg-${a.color}-100 rounded-lg flex items-center justify-center text-lg flex-shrink-0`}>
+                  <div key={`${a.text}-${a.ts}-${i}`} className="flex items-start gap-3 p-3 bg-neutral-50/80 rounded-xl hover:bg-neutral-100 transition-colors">
+                    <div className={`w-10 h-10 bg-${a.color}-100/80 rounded-lg flex items-center justify-center text-lg flex-shrink-0`}>
                       <IconFromCode code={a.icon} className="w-5 h-5" />
                     </div>
                     <div className="flex-1 min-w-0">

@@ -86,7 +86,7 @@ export default function App() {
   }, [navigate])
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-ocean-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-ocean-50/20 via-white to-white">
       <Routes>
         {/* Admin routes (modern layout) */}
         <Route
