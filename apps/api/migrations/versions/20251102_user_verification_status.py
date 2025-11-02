@@ -34,7 +34,7 @@ def upgrade():
             """
             UPDATE users
             SET verification_status = CASE
-                WHEN admin_verified = 1 THEN 'verified'
+                WHEN admin_verified THEN 'verified'
                 ELSE 'pending'
             END
             """
