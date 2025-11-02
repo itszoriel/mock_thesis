@@ -154,7 +154,16 @@ export default function BenefitsPage() {
   const eligibilityList = useMemo(() => {
     if (!selected) return [] as string[]
     const entries: string[] = []
+
+    const formatKey = (key: string) =>
+      key
+        .replace(/[_-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase())
+
     const pushNormalized = (value: unknown) => {
+      if (!value) return
       if (Array.isArray(value)) {
         value.forEach((item) => pushNormalized(item))
         return
@@ -164,26 +173,53 @@ export default function BenefitsPage() {
           .split(/\r?\n|[,•]/)
           .map((item) => item.trim())
           .filter(Boolean)
-        if (parts.length > 1) {
-          parts.forEach((part) => entries.push(part))
-        } else if (parts.length === 1) {
-          entries.push(parts[0])
-        }
+        if (parts.length === 0) return
+        parts.forEach((part) => entries.push(part))
         return
       }
-      if (value != null) {
-        entries.push(String(value))
+      if (typeof value === 'object') {
+        const obj = value as Record<string, unknown>
+        const labelLike = ['label', 'title', 'heading', 'name'].map((k) => obj[k])
+        const textLike = ['description', 'text', 'value', 'details'].map((k) => obj[k])
+
+        const label = labelLike.find((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        const text = textLike.find((item): item is string => typeof item === 'string' && item.trim().length > 0)
+
+        if (label || text) {
+          entries.push(label && text ? `${label.trim()}: ${text.trim()}` : (label || text)!.trim())
+        }
+
+        const remainingKeys = Object.keys(obj).filter((key) => !['label', 'title', 'heading', 'name', 'description', 'text', 'value', 'details'].includes(key))
+        remainingKeys.forEach((key) => {
+          const val = obj[key]
+          if (typeof val === 'string' && val.trim().length > 0) {
+            entries.push(`${formatKey(key)}: ${val.trim()}`)
+          } else if (typeof val === 'number') {
+            entries.push(`${formatKey(key)}: ${val}`)
+          } else if (typeof val === 'boolean') {
+            entries.push(`${formatKey(key)}: ${val ? 'Yes' : 'No'}`)
+          } else if (val != null) {
+            pushNormalized(val)
+          }
+        })
+        return
       }
+
+      entries.push(String(value))
     }
+
     pushNormalized((selected as any)?.eligibility)
     pushNormalized((selected as any)?.eligibility_criteria)
-    // Deduplicate while preserving order
+
     const seen = new Set<string>()
-    return entries.filter((item) => {
-      if (seen.has(item)) return false
-      seen.add(item)
-      return true
-    })
+    return entries
+      .map((item) => item.trim())
+      .filter((item) => {
+        if (!item) return false
+        if (seen.has(item)) return false
+        seen.add(item)
+        return true
+      })
   }, [selected])
 
   return (
