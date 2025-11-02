@@ -37,11 +37,49 @@ export default function BenefitsPage() {
   const [searchParams] = useSearchParams()
   const [applications, setApplications] = useState<any[]>([])
   const [openId, setOpenId] = useState<string | number | null>(null)
-  const isMismatch = !!(user as any)?.municipality_id && !!selectedMunicipality?.id && (user as any).municipality_id !== selectedMunicipality.id
+  const residentMunicipalityId = useMemo(() => {
+    const raw = (user as any)?.municipality_id
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+  }, [user])
+  const isMismatch = !!residentMunicipalityId && !!selectedMunicipality?.id && residentMunicipalityId !== selectedMunicipality.id
   const [benefitRequirements, setBenefitRequirements] = useState<Array<{ label: string; file?: File | null }>>([])
   const [applicationNotes, setApplicationNotes] = useState('')
   const [pageError, setPageError] = useState<string | null>(null)
   const [fetchingProgramId, setFetchingProgramId] = useState<number | null>(null)
+
+  const getProgramMunicipalityId = (program: Program | null | undefined): number | null => {
+    if (!program) return null
+    const raw = (program as any)?.municipality_id ?? (program as any)?.municipalityId ?? (program as any)?.municipality?.id
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+  }
+
+  const getProgramMunicipalityName = (program: Program | null | undefined): string => {
+    if (!program) return ''
+    return (
+      (program as any)?.municipality ||
+      (program as any)?.municipality_name ||
+      (program as any)?.municipality?.name ||
+      ''
+    )
+  }
+
+  const getApplicationBlockReason = (program: Program | null | undefined): string | null => {
+    if (!program) return 'Program is no longer available.'
+    if (!residentMunicipalityId) {
+      return 'Set your municipality in your profile before applying for benefits.'
+    }
+    const targetId = getProgramMunicipalityId(program)
+    if (!targetId) {
+      return null
+    }
+    if (targetId !== residentMunicipalityId) {
+      const name = getProgramMunicipalityName(program) || 'another municipality'
+      return `This program is limited to residents of ${name}.`
+    }
+    return null
+  }
 
   const openApplicationModal = async (program: Program) => {
     const numericId = Number(program?.id)
@@ -50,11 +88,23 @@ export default function BenefitsPage() {
       setPageError('Selected program is no longer available. Please refresh and try again.')
       return
     }
+    const earlyBlock = getApplicationBlockReason(program)
+    if (earlyBlock) {
+      setPageError(earlyBlock)
+      return
+    }
     setFetchingProgramId(numericId)
     try {
       const res = await benefitsApi.getProgram(numericId)
       const detail = res?.data || (res as any)?.program || res
       const merged = detail && typeof detail === 'object' ? { ...program, ...detail } : program
+      const blockAfterFetch = getApplicationBlockReason(merged)
+      if (blockAfterFetch) {
+        setPageError(blockAfterFetch)
+        setSelected(null)
+        setOpen(false)
+        return
+      }
       setSelected(merged)
       setOpen(true)
       setStep(1)
@@ -328,11 +378,22 @@ export default function BenefitsPage() {
                   </div>
                 )}
                 <div className="mt-4">
+                  {getProgramMunicipalityName(p) && (
+                    <div className="mb-3 text-xs text-gray-500">
+                      Available for {getProgramMunicipalityId(p) ? getProgramMunicipalityName(p) : `${getProgramMunicipalityName(p) || 'Province-wide'} residents`}
+                    </div>
+                  )}
+                  {getApplicationBlockReason(p) && (
+                    <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                      {getApplicationBlockReason(p)}
+                    </div>
+                  )}
                   <GatedAction
                     required="fullyVerified"
                     onAllowed={() => {
-                      if (isMismatch) {
-                        alert('Applications are limited to your registered municipality');
+                      const block = getApplicationBlockReason(p)
+                      if (block) {
+                        alert(block)
                         return
                       }
                       void openApplicationModal(p)
@@ -341,8 +402,8 @@ export default function BenefitsPage() {
                   >
                     <button
                       className="btn btn-primary w-full"
-                      disabled={isMismatch || fetchingProgramId === Number(p.id)}
-                      title={isMismatch ? 'Applications are limited to your municipality' : undefined}
+                      disabled={!!getApplicationBlockReason(p) || fetchingProgramId === Number(p.id)}
+                      title={getApplicationBlockReason(p) || undefined}
                     >
                       {fetchingProgramId === Number(p.id) ? 'Loading...' : 'Apply Now'}
                     </button>
@@ -375,6 +436,11 @@ export default function BenefitsPage() {
       )}
 
       <Modal isOpen={open} onClose={() => { setOpen(false); setSelected(null); setResult(null); setStep(1) }} title={selected ? `Apply: ${selected.name}` : 'Apply'}>
+        {selected && getApplicationBlockReason(selected) && (
+          <div className="mb-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+            {getApplicationBlockReason(selected)}
+          </div>
+        )}
         <Stepper steps={["Eligibility","Details","Review"]} current={step} />
         {step === 1 && (
           <div className="space-y-3">
