@@ -1,6 +1,6 @@
 """Public/resident Benefits routes (programs and applications)."""
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta
 
 try:
@@ -13,6 +13,7 @@ try:
         ValidationError,
         fully_verified_required,
         save_benefit_document,
+        jwt_identity_as_int,
     )
 except ImportError:
     from __init__ import db
@@ -24,6 +25,7 @@ except ImportError:
         ValidationError,
         fully_verified_required,
         save_benefit_document,
+        jwt_identity_as_int,
     )
 
 
@@ -109,7 +111,10 @@ def get_program(program_id: int):
 def create_application():
     """Create a benefit application for the current user."""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
         user = User.query.get(user_id)
         if not user:
             return jsonify({'error': 'User not found'}), 404
@@ -118,7 +123,12 @@ def create_application():
         required = ['program_id']
         validate_required_fields(data, required)
 
-        program = BenefitProgram.query.get(int(data['program_id']))
+        try:
+            program_id = int(data['program_id'])
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid program_id'}), 400
+
+        program = BenefitProgram.query.get(program_id)
         if not program or not program.is_active:
             return jsonify({'error': 'Invalid program'}), 400
 
@@ -153,8 +163,15 @@ def create_application():
 @jwt_required()
 def my_applications():
     try:
-        user_id = get_jwt_identity()
-        apps = BenefitApplication.query.filter_by(user_id=user_id).order_by(BenefitApplication.created_at.desc()).all()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
+        apps = (
+            BenefitApplication.query.filter_by(user_id=user_id)
+            .order_by(BenefitApplication.created_at.desc())
+            .all()
+        )
         return jsonify({'applications': [a.to_dict() for a in apps], 'count': len(apps)}), 200
     except Exception as e:
         return jsonify({'error': 'Failed to get applications', 'details': str(e)}), 500
@@ -165,7 +182,10 @@ def my_applications():
 @fully_verified_required
 def upload_application_doc(application_id: int):
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
         user = User.query.get(user_id)
         app = BenefitApplication.query.get(application_id)
         if not app:

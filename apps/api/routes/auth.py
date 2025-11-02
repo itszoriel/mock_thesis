@@ -268,7 +268,10 @@ def login():
         
         if not user:
             current_app.logger.warning("Login failed: user not found for %s", ue)
-            return jsonify({'error': 'Invalid credentials'}), 401
+            return jsonify({
+                'error': 'Account not found',
+                'details': 'We could not find an account with that username or email. Please double-check or register for a new account.'
+            }), 404
         
         # Check password
         try:
@@ -280,12 +283,18 @@ def login():
 
         if not valid_password:
             current_app.logger.warning("Login failed: invalid password for %s", ue)
-            return jsonify({'error': 'Invalid credentials'}), 401
+            return jsonify({
+                'error': 'Incorrect password',
+                'details': 'The password you entered does not match this account.'
+            }), 400
         
         # Check if account is active
         if not user.is_active:
             current_app.logger.warning("Login blocked: inactive account for %s", ue)
-            return jsonify({'error': 'Account is deactivated'}), 403
+            return jsonify({
+                'error': 'Account deactivated',
+                'details': 'This account has been disabled. Please contact your municipal administrator for assistance.'
+            }), 403
         
         # Update last login
         user.last_login = datetime.utcnow()

@@ -1,29 +1,35 @@
 """Authentication and authorization utilities."""
 from functools import wraps
+from typing import Optional
+
 from flask import jsonify
-from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity, get_jwt
-from apps.api.models.user import User
+from flask_jwt_extended import get_jwt, get_jwt_identity, verify_jwt_in_request
+
 from apps.api.models.token_blacklist import TokenBlacklist
+from apps.api.models.user import User
 
 
-def jwt_identity_as_int():
-    """Return the current JWT identity cast to int when possible."""
-    from flask_jwt_extended import get_jwt_identity
+def jwt_identity_as_int() -> Optional[int]:
+    """Return the current JWT identity as an int when possible."""
     uid = get_jwt_identity()
-    try:
-        return int(uid) if isinstance(uid, str) else int(uid)
-    except Exception:
+    if uid is None:
+        return None
+    if isinstance(uid, int):
         return uid
+    try:
+        return int(uid)
+    except (TypeError, ValueError):
+        return None
 
 
 def get_current_user():
     """Get the current authenticated user."""
     verify_jwt_in_request()
-    user_id = get_jwt_identity()
-    
+    user_id = jwt_identity_as_int()
+
     if not user_id:
         return None
-    
+
     user = User.query.get(user_id)
     return user
 
@@ -33,19 +39,19 @@ def admin_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         verify_jwt_in_request()
-        user_id = get_jwt_identity()
-        
+        user_id = jwt_identity_as_int()
+
         if not user_id:
             return jsonify({'error': 'Authentication required'}), 401
-        
+
         user = User.query.get(user_id)
-        
+
         if not user:
             return jsonify({'error': 'User not found'}), 404
-        
+
         if user.role not in ('admin', 'municipal_admin'):
             return jsonify({'error': 'Admin access required', 'code': 'ROLE_MISMATCH'}), 403
-        
+
         return fn(*args, **kwargs)
     
     return wrapper
@@ -56,16 +62,16 @@ def verified_resident_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         verify_jwt_in_request()
-        user_id = get_jwt_identity()
-        
+        user_id = jwt_identity_as_int()
+
         if not user_id:
             return jsonify({'error': 'Authentication required'}), 401
-        
+
         user = User.query.get(user_id)
-        
+
         if not user:
             return jsonify({'error': 'User not found'}), 404
-        
+
         # Strict resident role requirement
         if user.role != 'resident':
             return jsonify({'error': 'Resident account required', 'code': 'ROLE_MISMATCH'}), 403
@@ -83,16 +89,16 @@ def fully_verified_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         verify_jwt_in_request()
-        user_id = get_jwt_identity()
-        
+        user_id = jwt_identity_as_int()
+
         if not user_id:
             return jsonify({'error': 'Authentication required'}), 401
-        
+
         user = User.query.get(user_id)
-        
+
         if not user:
             return jsonify({'error': 'User not found'}), 404
-        
+
         # Must be a resident and fully verified
         if user.role != 'resident':
             return jsonify({'error': 'Resident account required', 'code': 'ROLE_MISMATCH'}), 403
@@ -109,16 +115,16 @@ def adult_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         verify_jwt_in_request()
-        user_id = get_jwt_identity()
-        
+        user_id = jwt_identity_as_int()
+
         if not user_id:
             return jsonify({'error': 'Authentication required'}), 401
-        
+
         user = User.query.get(user_id)
-        
+
         if not user:
             return jsonify({'error': 'User not found'}), 404
-        
+
         if user.is_under_18():
             return jsonify({'error': 'You must be 18 or older to access this feature'}), 403
         
@@ -144,16 +150,16 @@ def municipality_admin_required(municipality_id=None):
         @wraps(fn)
         def wrapper(*args, **kwargs):
             verify_jwt_in_request()
-            user_id = get_jwt_identity()
-            
+            user_id = jwt_identity_as_int()
+
             if not user_id:
                 return jsonify({'error': 'Authentication required'}), 401
-            
+
             user = User.query.get(user_id)
-            
+
             if not user:
                 return jsonify({'error': 'User not found'}), 404
-            
+
             if user.role not in ('admin', 'municipal_admin'):
                 return jsonify({'error': 'Admin access required', 'code': 'ROLE_MISMATCH'}), 403
             

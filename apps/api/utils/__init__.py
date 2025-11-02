@@ -38,6 +38,7 @@ except ImportError:
     )
 
 from apps.api.utils.auth import (
+    jwt_identity_as_int,
     get_current_user,
     admin_required,
     verified_resident_required,
@@ -106,6 +107,7 @@ __all__ = [
     'validate_price',
     'ValidationError',
     # Auth
+    'jwt_identity_as_int',
     'get_current_user',
     'admin_required',
     'verified_resident_required',

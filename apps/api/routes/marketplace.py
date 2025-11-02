@@ -1,6 +1,6 @@
 """Marketplace routes for items, transactions, and messages."""
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 from datetime import datetime, timezone, timedelta
 import sqlite3
 from sqlalchemy.exc import OperationalError as SAOperationalError, ProgrammingError as SAProgrammingError
@@ -16,6 +16,7 @@ from apps.api.utils import (
     validate_item_condition,
     validate_price,
     ValidationError,
+    jwt_identity_as_int,
     # Tx audit helpers
     log_tx_action,
     require_tx_role,
@@ -119,7 +120,10 @@ def get_item(item_id):
 def create_item():
     """Create a new marketplace item."""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
         user = User.query.get(user_id)
         
         if not user:
@@ -186,19 +190,16 @@ def create_item():
 def update_item(item_id):
     """Update an existing item (owner only)."""
     try:
-        user_id = get_jwt_identity()
-        # Normalize identity to integer when possible to match DB values
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else user_id
-        except Exception:
-            uid = user_id
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         item = Item.query.get(item_id)
         
         if not item:
             return jsonify({'error': 'Item not found'}), 404
         
         # Check ownership
-        if item.user_id != uid:
+        if item.user_id != user_id:
             return jsonify({'error': 'You can only edit your own items'}), 403
         
         data = request.get_json(silent=True) or {}
@@ -244,19 +245,16 @@ def update_item(item_id):
 def delete_item(item_id):
     """Delete an item (soft delete)."""
     try:
-        user_id = get_jwt_identity()
-        # Normalize identity to integer when possible to match DB values
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else user_id
-        except Exception:
-            uid = user_id
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         item = Item.query.get(item_id)
         
         if not item:
             return jsonify({'error': 'Item not found'}), 404
         
         # Check ownership
-        if item.user_id != uid:
+        if item.user_id != user_id:
             return jsonify({'error': 'You can only delete your own items'}), 403
         
         # Soft delete
@@ -276,16 +274,13 @@ def delete_item(item_id):
 def get_my_items():
     """Get current user's items."""
     try:
-        user_id = get_jwt_identity()
-        # flask_jwt_extended returns identity as string in our tokens; cast safely
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else user_id
-        except Exception:
-            uid = user_id
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
 
         items = (
             Item.query
-            .filter_by(user_id=uid, is_active=True)
+            .filter_by(user_id=user_id, is_active=True)
             .order_by(Item.created_at.desc())
             .all()
         )
@@ -307,16 +302,13 @@ def get_my_items():
 def upload_item_image(item_id):
     """Upload an image for a marketplace item (owner only, max 5)."""
     try:
-        user_id = get_jwt_identity()
-        # Normalize identity to integer when possible (tokens may carry string ids)
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else int(user_id)
-        except Exception:
-            uid = user_id
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         item = Item.query.get(item_id)
         if not item:
             return jsonify({'error': 'Item not found'}), 404
-        if item.user_id != uid:
+        if item.user_id != user_id:
             return jsonify({'error': 'Forbidden'}), 403
 
         if 'file' not in request.files:
@@ -347,17 +339,14 @@ def upload_item_image(item_id):
 def upload_item_images(item_id):
     """Upload multiple images for a marketplace item (owner only, max 5 total)."""
     try:
-        user_id = get_jwt_identity()
-        # Normalize identity to integer when possible (tokens may carry string ids)
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else int(user_id)
-        except Exception:
-            uid = user_id
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
 
         item = Item.query.get(item_id)
         if not item:
             return jsonify({'error': 'Item not found'}), 404
-        if item.user_id != uid:
+        if item.user_id != user_id:
             return jsonify({'error': 'Forbidden'}), 403
 
         files = request.files.getlist('files')
@@ -408,7 +397,10 @@ def upload_item_images(item_id):
 def create_transaction():
     """Create a transaction request (buy, borrow, or request donation)."""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
         user = User.query.get(user_id)
         
         if not user:
@@ -431,12 +423,8 @@ def create_transaction():
         if item.status != 'available':
             return jsonify({'error': 'Item is no longer available'}), 400
         
-        # Can't transact with yourself (normalize identity type)
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else user_id
-        except Exception:
-            uid = user_id
-        if int(item.user_id) == int(uid):
+        # Can't transact with yourself
+        if int(item.user_id) == int(user_id):
             return jsonify({'error': 'You cannot transact with your own item'}), 400
         
         # Enforce municipality scoping: transactions only within user's registered municipality
@@ -455,7 +443,7 @@ def create_transaction():
         # Create transaction; keep item visible until seller proposes
         transaction = Transaction(
             item_id=item_id,
-            buyer_id=uid,
+            buyer_id=user_id,
             seller_id=item.user_id,
             transaction_type=item.transaction_type,
             amount=item.price if item.transaction_type == 'sell' else None,
@@ -481,11 +469,9 @@ def create_transaction():
 def propose_transaction(transaction_id):
     """Seller proposes pickup datetime and location; moves status to awaiting_buyer."""
     try:
-        user_id = get_jwt_identity()
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else user_id
-        except Exception:
-            uid = user_id
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         data = request.get_json(silent=True) or {}
         pickup_at_raw = (data.get('pickup_at') or '').strip()
         pickup_location = (data.get('pickup_location') or '').strip()
@@ -506,7 +492,7 @@ def propose_transaction(transaction_id):
         tx = Transaction.query.get(transaction_id)
         if not tx:
             return jsonify({'error': 'Transaction not found'}), 404
-        if tx.seller_id != uid:
+        if tx.seller_id != user_id:
             return jsonify({'error': 'Only the seller can propose pickup details'}), 403
         if tx.status != 'pending' and tx.status != 'awaiting_buyer':
             return jsonify({'error': 'Proposal not allowed in current status'}), 400
@@ -527,15 +513,13 @@ def propose_transaction(transaction_id):
 def buyer_confirm_transaction(transaction_id):
     """Buyer confirms the proposed pickup details; reserves item and accepts."""
     try:
-        user_id = get_jwt_identity()
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else user_id
-        except Exception:
-            uid = user_id
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         tx = Transaction.query.get(transaction_id)
         if not tx:
             return jsonify({'error': 'Transaction not found'}), 404
-        if tx.buyer_id != uid:
+        if tx.buyer_id != user_id:
             return jsonify({'error': 'Only the buyer can confirm'}), 403
         if tx.status != 'awaiting_buyer':
             return jsonify({'error': 'Transaction is not awaiting buyer confirmation'}), 400
@@ -561,15 +545,13 @@ def buyer_confirm_transaction(transaction_id):
 def buyer_reject_transaction(transaction_id):
     """Buyer rejects the proposed pickup; frees item for new requests and marks transaction rejected."""
     try:
-        user_id = get_jwt_identity()
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else user_id
-        except Exception:
-            uid = user_id
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         tx = Transaction.query.get(transaction_id)
         if not tx:
             return jsonify({'error': 'Transaction not found'}), 404
-        if tx.buyer_id != uid:
+        if tx.buyer_id != user_id:
             return jsonify({'error': 'Only the buyer can reject the proposal'}), 403
         if tx.status != 'awaiting_buyer':
             return jsonify({'error': 'Transaction is not awaiting buyer confirmation'}), 400
@@ -593,12 +575,9 @@ def buyer_reject_transaction(transaction_id):
 def accept_transaction(transaction_id):
     """Legacy: Direct seller acceptance. Prefer /propose + buyer confirmation flow."""
     try:
-        user_id = get_jwt_identity()
-        # Normalize identity to integer when possible to match DB values
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else user_id
-        except Exception:
-            uid = user_id
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         data = request.get_json(silent=True) or {}
         pickup_at_raw = (data.get('pickup_at') or '').strip()
         pickup_location = (data.get('pickup_location') or '').strip()
@@ -624,7 +603,7 @@ def accept_transaction(transaction_id):
             return jsonify({'error': 'Transaction not found'}), 404
         
         # Check if seller
-        if transaction.seller_id != uid:
+        if transaction.seller_id != user_id:
             return jsonify({'error': 'Only the seller can accept this transaction'}), 403
         
         if transaction.status not in ['pending', 'awaiting_buyer']:
@@ -660,7 +639,9 @@ def accept_transaction(transaction_id):
 def reject_transaction(transaction_id):
     """Reject a pending transaction request (seller only). Keeps item available for others."""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         transaction = Transaction.query.get(transaction_id)
 
         if not transaction:
@@ -699,21 +680,19 @@ def reject_transaction(transaction_id):
 def get_my_transactions():
     """Get current user's transactions (as buyer or seller)."""
     try:
-        user_id = get_jwt_identity()
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else user_id
-        except Exception:
-            uid = user_id
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
 
         as_buyer = (
             Transaction.query
-            .filter_by(buyer_id=uid)
+            .filter_by(buyer_id=user_id)
             .order_by(Transaction.created_at.desc())
             .all()
         )
         as_seller = (
             Transaction.query
-            .filter_by(seller_id=uid)
+            .filter_by(seller_id=user_id)
             .order_by(Transaction.created_at.desc())
             .all()
         )
@@ -733,7 +712,9 @@ def get_my_transactions():
 def tx_handover_seller(transaction_id: int):
     """Seller confirms item handed over to buyer. accepted -> handed_over"""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         tx = Transaction.query.get(transaction_id)
         if not tx:
             return jsonify({'error': 'Transaction not found'}), 404
@@ -778,7 +759,9 @@ def tx_handover_seller(transaction_id: int):
 def tx_handover_buyer(transaction_id: int):
     """Buyer confirms they received the item. handed_over -> received"""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         tx = Transaction.query.get(transaction_id)
         if not tx:
             return jsonify({'error': 'Transaction not found'}), 404
@@ -820,7 +803,9 @@ def tx_handover_buyer(transaction_id: int):
 def tx_return_buyer(transaction_id: int):
     """Buyer indicates they returned a lent item. received -> returned (lend only)"""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         tx = Transaction.query.get(transaction_id)
         if not tx:
             return jsonify({'error': 'Transaction not found'}), 404
@@ -863,7 +848,9 @@ def tx_return_buyer(transaction_id: int):
 def tx_return_seller(transaction_id: int):
     """Seller confirms they received the lent item back. returned -> completed (lend only)"""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         tx = Transaction.query.get(transaction_id)
         if not tx:
             return jsonify({'error': 'Transaction not found'}), 404
@@ -914,7 +901,9 @@ def tx_return_seller(transaction_id: int):
 def tx_complete(transaction_id: int):
     """Complete sell/donate after buyer received the item. received -> completed"""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         tx = Transaction.query.get(transaction_id)
         if not tx:
             return jsonify({'error': 'Transaction not found'}), 404
@@ -940,7 +929,7 @@ def tx_complete(transaction_id: int):
         try:
             log_tx_action(
                 tx,
-                actor_id=int(user_id) if user_id is not None else None,
+                actor_id=int(user_id),
                 actor_role='buyer' if int(user_id) == int(tx.buyer_id) else ('seller' if int(user_id) == int(tx.seller_id) else 'system'),
                 action='complete',
                 from_status=prev,
@@ -965,7 +954,9 @@ def tx_complete(transaction_id: int):
 def tx_dispute(transaction_id: int):
     """Either party can dispute a transaction; sets status to disputed and records notes."""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         tx = Transaction.query.get(transaction_id)
         if not tx:
             return jsonify({'error': 'Transaction not found'}), 404
@@ -1014,16 +1005,14 @@ def tx_dispute(transaction_id: int):
 def tx_audit(transaction_id: int):
     """Return audit timeline. Visible to buyer, seller, or admin via role in JWT."""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
         tx = Transaction.query.get(transaction_id)
         if not tx:
             return jsonify({'error': 'Transaction not found'}), 404
         # Allow buyer or seller; admins handled at gateway/role level elsewhere.
-        try:
-            uid = int(user_id) if isinstance(user_id, str) else user_id
-        except Exception:
-            uid = user_id
-        if uid not in (tx.buyer_id, tx.seller_id):
+        if user_id not in (tx.buyer_id, tx.seller_id):
             # Still allow if role claim is admin (if present)
             try:
                 from flask_jwt_extended import get_jwt

@@ -1,6 +1,6 @@
 """Document types and requests routes."""
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 
 try:
     from apps.api import db
@@ -11,6 +11,7 @@ try:
         ValidationError,
         save_document_request_file,
         fully_verified_required,
+        jwt_identity_as_int,
     )
 except ImportError:
     from __init__ import db
@@ -21,6 +22,7 @@ except ImportError:
         ValidationError,
         save_document_request_file,
         fully_verified_required,
+        jwt_identity_as_int,
     )
 
 
@@ -46,7 +48,10 @@ def list_document_types():
 def create_document_request():
     """Create a new document request for the current user."""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
         user = User.query.get(user_id)
         if not user:
             return jsonify({'error': 'User not found'}), 404
@@ -56,11 +61,21 @@ def create_document_request():
         validate_required_fields(data, required)
 
         # Enforce municipality scoping: residents may only request in their registered municipality
-        if not user.municipality_id or int(user.municipality_id) != int(data['municipality_id']):
+        try:
+            municipality_id = int(data['municipality_id'])
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid municipality_id'}), 400
+
+        if not user.municipality_id or int(user.municipality_id) != municipality_id:
             return jsonify({'error': 'You can only request documents in your registered municipality'}), 403
 
         # Validate delivery rules against selected document type
-        dt = DocumentType.query.get(int(data['document_type_id']))
+        try:
+            document_type_id = int(data['document_type_id'])
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid document_type_id'}), 400
+
+        dt = DocumentType.query.get(document_type_id)
         if not dt or not dt.is_active:
             return jsonify({'error': 'Selected document type is not available'}), 400
 
@@ -93,6 +108,14 @@ def create_document_request():
             else:
                 pickup_address = f"Municipal Hall - {muni_name}"
 
+        raw_barangay_id = data.get('barangay_id')
+        provided_barangay_id = None
+        if raw_barangay_id is not None and raw_barangay_id != '':
+            try:
+                provided_barangay_id = int(raw_barangay_id)
+            except (TypeError, ValueError):
+                return jsonify({'error': 'Invalid barangay_id'}), 400
+
         selected_barangay_id = None
         if pickup_location == 'barangay':
             selected_barangay_id = getattr(user, 'barangay_id', None)
@@ -114,9 +137,9 @@ def create_document_request():
         req = DocumentRequest(
             request_number=f"REQ-{user_id}-{User.query.count()}-{DocumentRequest.query.count()+1}",
             user_id=user_id,
-            document_type_id=data['document_type_id'],
-            municipality_id=data['municipality_id'],
-            barangay_id= selected_barangay_id if requested_method == 'pickup' else (data.get('barangay_id') or getattr(user, 'barangay_id', None)),
+            document_type_id=document_type_id,
+            municipality_id=municipality_id,
+            barangay_id= selected_barangay_id if requested_method == 'pickup' else (provided_barangay_id or getattr(user, 'barangay_id', None)),
             delivery_method=requested_method,
             # Derive pickup location string from selection; no free-text input
             delivery_address= pickup_address if requested_method == 'pickup' else data.get('delivery_address'),
@@ -158,8 +181,15 @@ def create_document_request():
 def get_my_requests():
     """Get current user's document requests."""
     try:
-        user_id = get_jwt_identity()
-        requests_q = DocumentRequest.query.filter_by(user_id=user_id).order_by(DocumentRequest.created_at.desc()).all()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
+        requests_q = (
+            DocumentRequest.query.filter_by(user_id=user_id)
+            .order_by(DocumentRequest.created_at.desc())
+            .all()
+        )
         return jsonify({
             'count': len(requests_q),
             'requests': [r.to_dict() for r in requests_q]
@@ -173,9 +203,12 @@ def get_my_requests():
 def get_request_detail(request_id: int):
     """Get a specific request detail (owned by user)."""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
         r = DocumentRequest.query.get(request_id)
-        if not r or r.user_id != int(user_id):
+        if not r or r.user_id != user_id:
             return jsonify({'error': 'Request not found'}), 404
         return jsonify({'request': r.to_dict()}), 200
     except Exception as e:
@@ -190,9 +223,12 @@ def get_claim_ticket(request_id: int):
     Reuses qr_code (relative path) and qr_data (JSON) fields.
     """
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
         r = DocumentRequest.query.get(request_id)
-        if not r or r.user_id != int(user_id):
+        if not r or r.user_id != user_id:
             return jsonify({'error': 'Request not found'}), 404
         if (r.delivery_method or '').lower() not in ('physical', 'pickup'):
             return jsonify({'error': 'Not a pickup request'}), 400
@@ -269,9 +305,12 @@ def public_verify_document(request_number: str):
 def upload_request_files(request_id: int):
     """Upload supporting documents to a request (owned by user). Accepts multiple 'file' parts."""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
         r = DocumentRequest.query.get(request_id)
-        if not r or r.user_id != int(user_id):
+        if not r or r.user_id != user_id:
             return jsonify({'error': 'Request not found'}), 404
 
         if not request.files:

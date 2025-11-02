@@ -1,6 +1,6 @@
 """Public/resident Issue reporting routes."""
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required
 from sqlalchemy import or_
 
 try:
@@ -13,6 +13,7 @@ try:
         ValidationError,
         fully_verified_required,
         save_issue_attachment,
+        jwt_identity_as_int,
     )
 except ImportError:
     from __init__ import db
@@ -24,6 +25,7 @@ except ImportError:
         ValidationError,
         fully_verified_required,
         save_issue_attachment,
+        jwt_identity_as_int,
     )
 
 
@@ -104,7 +106,10 @@ def get_issue(issue_id: int):
 def create_issue():
     """Create a new resident issue (scoped to resident's municipality)."""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
         user = User.query.get(user_id)
         if not user:
             return jsonify({'error': 'User not found'}), 404
@@ -119,7 +124,12 @@ def create_issue():
             return jsonify({'error': 'User has no registered municipality'}), 400
 
         # Validate category
-        category = IssueCategory.query.get(int(data['category_id']))
+        try:
+            category_id = int(data['category_id'])
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid category'}), 400
+
+        category = IssueCategory.query.get(category_id)
         if not category:
             return jsonify({'error': 'Invalid category'}), 400
 
@@ -132,6 +142,12 @@ def create_issue():
         if not specific_location:
             return jsonify({'error': 'specific_location is required'}), 400
 
+        raw_barangay_id = data.get('barangay_id')
+        try:
+            barangay_id = int(raw_barangay_id) if raw_barangay_id is not None else None
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid barangay_id'}), 400
+
         issue = Issue(
             issue_number=issue_number,
             user_id=user_id,
@@ -139,7 +155,7 @@ def create_issue():
             title=data['title'],
             description=data['description'],
             municipality_id=municipality_id,
-            barangay_id=data.get('barangay_id'),
+            barangay_id=barangay_id,
             specific_location=specific_location,
             latitude=data.get('latitude'),
             longitude=data.get('longitude'),
@@ -164,7 +180,10 @@ def create_issue():
 def my_issues():
     """Get current user's issues."""
     try:
-        user_id = int(get_jwt_identity())
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
         issues = Issue.query.filter(Issue.user_id == user_id).order_by(Issue.created_at.desc()).all()
         return jsonify({'issues': [i.to_dict() for i in issues], 'count': len(issues)}), 200
     except Exception as e:
@@ -177,7 +196,10 @@ def my_issues():
 def upload_issue_file(issue_id: int):
     """Upload attachment to an owned issue."""
     try:
-        user_id = get_jwt_identity()
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
         user = User.query.get(user_id)
         issue = Issue.query.get(issue_id)
         if not issue:
