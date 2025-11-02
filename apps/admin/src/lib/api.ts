@@ -231,6 +231,8 @@ export const benefitsApi = {
 export const benefitsAdminApi = {
   listPrograms: (): Promise<ApiResponse<{ programs: any[]; count: number }>> =>
     apiClient.get('/api/admin/benefits/programs').then((res) => res.data),
+  listApplications: (params: Record<string, any> = {}): Promise<ApiResponse<{ applications: any[]; pagination?: any }>> =>
+    apiClient.get('/api/admin/benefits/applications', { params }).then((res) => res.data),
   createProgram: (data: any): Promise<ApiResponse> =>
     apiClient.post('/api/admin/benefits/programs', data).then((res) => res.data),
   updateProgram: (id: number, data: any): Promise<ApiResponse> =>

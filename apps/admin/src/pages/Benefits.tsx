@@ -73,20 +73,17 @@ export default function Benefits() {
       try {
         setError(null)
         setLoading(true)
-        const res = await fetch(`${(import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:5000'}/api/admin/benefits/applications`, {
-          credentials: 'include',
-          headers: { 'Authorization': `Bearer ${useAdminStore.getState().accessToken}` }
-        })
-        const data = await res.json()
-        if (!res.ok) throw new Error(data?.error || 'Failed to load applications')
+        const res = await benefitsAdminApi.listApplications()
+        const apps = (res as any)?.applications || (res as any)?.data?.applications || []
         if (mounted) {
-          setApplications(data.applications || [])
-          const total = (data && typeof data.pagination?.total === 'number') ? data.pagination.total : (data.applications || []).length
-          setApplicationsCount(total)
+          setApplications(Array.isArray(apps) ? apps : [])
+          const total = (res as any)?.pagination?.total ?? (apps?.length ?? 0)
+          setApplicationsCount(typeof total === 'number' ? total : 0)
         }
       } catch (e: any) {
         setApplications([])
-        setError(e.message || 'Failed to load applications')
+        const message = handleApiError(e) || 'Failed to load applications'
+        setError(message)
       } finally {
         if (mounted) setLoading(false)
       }
@@ -110,22 +107,50 @@ export default function Benefits() {
       const res = await benefitsAdminApi.createProgram(payload)
       const created = (res as any)?.program
       if (created) {
-        setPrograms((prev) => [{
-          id: created.id,
-          title: created.name,
-          description: created.description,
-          beneficiaries: created.current_beneficiaries || 0,
-          duration_days: created.duration_days ?? null,
-          completed_at: created.completed_at || null,
-          is_active: created.is_active !== false,
-          status: created.is_active ? 'active' : 'archived',
-          icon: '📋',
+        setPrograms((prev) => {
+          const next = [{
+            id: created.id,
+            title: created.name,
+            description: created.description,
+            beneficiaries: created.current_beneficiaries || 0,
+            duration_days: created.duration_days ?? null,
+            completed_at: created.completed_at || null,
+            is_active: created.is_active !== false,
+            status: created.is_active ? 'active' : 'archived',
+            icon: '📋',
             color: 'ocean',
             required_documents: created.required_documents || [],
-        }, ...prev])
-        setActiveCount((c) => c + (created.is_active ? 1 : 0))
+          }, ...prev]
+          const active = next.filter((p: any) => p.is_active).length
+          const beneficiariesSum = next.reduce((sum: number, item: any) => sum + (Number(item.beneficiaries) || 0), 0)
+          setActiveCount(active)
+          setBeneficiariesTotal(isNaN(beneficiariesSum) ? null : beneficiariesSum)
+          return next
+        })
       }
       setCreateOpen(false)
+    } catch (e: any) {
+      setError(handleApiError(e))
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleDeleteProgram = async (programId: number) => {
+    const confirmed = window.confirm('Delete this program permanently? This cannot be undone.')
+    if (!confirmed) return
+    try {
+      setActionLoading(programId)
+      await benefitsAdminApi.deleteProgram(programId)
+      setPrograms((prev) => {
+        const next = prev.filter((p: any) => p.id !== programId)
+        const active = next.filter((p: any) => p.is_active).length
+        const beneficiariesSum = next.reduce((sum: number, item: any) => sum + (Number(item.beneficiaries) || 0), 0)
+        setActiveCount(active)
+        setBeneficiariesTotal(isNaN(beneficiariesSum) ? null : beneficiariesSum)
+        return next
+      })
+      showToast('Program deleted', 'success')
     } catch (e: any) {
       setError(handleApiError(e))
     } finally {
@@ -192,6 +217,10 @@ export default function Benefits() {
                   </div>
                 )}
               </div>
+              <div className="flex gap-2">
+                <button onClick={async () => { try { const res = await benefitsApi.getProgramById(program.id); setViewProgram((res as any)?.data || res) } catch (e: any) { setError(handleApiError(e)) } }} className="flex-1 py-2 bg-ocean-100 hover:bg-ocean-200 text-ocean-700 rounded-xl text-sm font-medium transition-colors">View Details</button>
+                <button onClick={() => handleDeleteProgram(program.id)} className="flex-1 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-sm font-medium transition-colors" disabled={actionLoading===program.id}>Delete</button>
+              </div>
             </div>
           </div>
         ))}
@@ -252,6 +281,7 @@ export default function Benefits() {
                 <button onClick={async () => { try { const res = await benefitsApi.getProgramById(program.id); setViewProgram((res as any)?.data || res) } catch (e: any) { setError(handleApiError(e)) } }} className="flex-1 py-2 bg-ocean-100 hover:bg-ocean-200 text-ocean-700 rounded-xl text-sm font-medium transition-colors">View Details</button>
                 <button onClick={() => { setViewProgram({ ...program, _edit: true }) }} className="flex-1 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-sm font-medium transition-colors">Edit</button>
                 <button onClick={async ()=>{ try { setActionLoading(program.id); await benefitsAdminApi.completeProgram(program.id); setPrograms((prev:any[])=> prev.map((p:any)=> p.id===program.id ? { ...p, is_active:false, status:'archived', completed_at: new Date().toISOString() } : p)); setActiveCount((c)=> Math.max(0, c-1)); showToast('Program marked as completed','success') } catch(e:any){ setError(handleApiError(e)) } finally { setActionLoading(null) } }} className="flex-1 py-2 bg-forest-100 hover:bg-forest-200 text-forest-700 rounded-xl text-sm font-medium transition-colors" disabled={actionLoading===program.id}>Done</button>
+                <button onClick={() => handleDeleteProgram(program.id)} className="flex-1 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-sm font-medium transition-colors" disabled={actionLoading===program.id}>Delete</button>
               </div>
             </div>
           </div>
