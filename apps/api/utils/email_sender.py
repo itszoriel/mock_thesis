@@ -117,10 +117,33 @@ def send_user_status_email(to_email: str, approved: bool, reason: str | None = N
         )
     else:
         subject = f"{app_name}: Registration Rejected"
+        web_url = app.config.get('WEB_URL', 'https://munlink-web.onrender.com')
         body = (
-            "Your registration has been rejected.\n"
-            f"Reason: {reason or 'Not specified.'}\n"
+            "Hello,\n\n"
+            "Unfortunately your MunLink Zambales registration was rejected by the municipal administrator.\n"
+            f"Reason: {reason or 'Not specified.'}\n\n"
+            "To continue using MunLink, please sign up again using the same Gmail address and resubmit all required identification documents for review.\n"
+            f"Registration link: {web_url}/register\n\n"
+            "If you believe this decision was made in error, contact your municipal hall or reply to this email with additional details.\n\n"
+            f"Thank you,\n{app_name} Team"
         )
+    send_generic_email(to_email, subject, body)
+
+
+def send_password_reset_email(to_email: str, reset_link: str, name: str | None = None) -> None:
+    app = current_app
+    app_name = app.config.get('APP_NAME', 'MunLink Zambales')
+    subject = f"{app_name}: Password Reset Instructions"
+    greeting = f"Hello {name}," if name else "Hello," 
+    body = (
+        f"{greeting}\n\n"
+        "We received a request to reset the password for your MunLink account. "
+        "If you made this request, click the secure link below to choose a new password.\n\n"
+        f"Reset link (valid for 1 hour): {reset_link}\n\n"
+        "If you did not request a password reset, you can safely ignore this email. "
+        "Your password will remain unchanged.\n\n"
+        f"Thank you,\n{app_name} Team"
+    )
     send_generic_email(to_email, subject, body)
 
 

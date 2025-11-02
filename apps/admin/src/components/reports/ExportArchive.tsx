@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { exportAdminApi, mediaUrl, showToast } from '../../lib/api'
+import { exportAdminApi, mediaUrl, showToast, handleApiError } from '../../lib/api'
 
 export default function ExportArchive({ defaultRange, onRangeChange }: { defaultRange: string; onRangeChange: (r: string)=>void }) {
   const [working, setWorking] = useState<string>('')
@@ -22,7 +22,7 @@ export default function ExportArchive({ defaultRange, onRangeChange }: { default
       const url = (res as any)?.url || (res as any)?.data?.url
       if (url) window.open(mediaUrl(url), '_blank')
     } catch (e: any) {
-      showToast('Export failed', 'error')
+      showToast(handleApiError(e), 'error')
     } finally {
       setWorking('')
     }
@@ -46,7 +46,7 @@ export default function ExportArchive({ defaultRange, onRangeChange }: { default
         try { window.open(mediaUrl(archivedUrl), '_blank') } catch {}
       }
     } catch (e: any) {
-      showToast('Cleanup failed', 'error')
+      showToast(handleApiError(e), 'error')
     } finally {
       setWorking('')
       setConfirm('')

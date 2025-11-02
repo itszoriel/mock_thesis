@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { adminApi, handleApiError, userApi, issueApi, marketplaceApi, announcementApi } from '../lib/api'
+import { adminApi, handleApiError, userApi, issueApi, marketplaceApi, announcementApi, showToast } from '../lib/api'
 import UserVerificationList from '../components/UserVerificationList'
 import { useNavigate } from 'react-router-dom'
 import { useAdminStore } from '../lib/store'
@@ -52,6 +52,7 @@ export default function Dashboard() {
       } catch (e: any) {
         const msg = handleApiError(e)
         setError(msg)
+        showToast(msg, 'error')
       } finally {
         if (mounted) setLoading(false)
       }
@@ -142,8 +143,9 @@ export default function Dashboard() {
         { label: 'Marketplace', value: marketplace7, max: Math.max(10, marketplace7), color: 'sunset' },
         { label: 'Issues', value: issues7, max: Math.max(10, issues7), color: 'red' },
       ])
-    } catch {
+    } catch (err: any) {
       setActivity([])
+      showToast(handleApiError(err), 'error')
     }
   }
 

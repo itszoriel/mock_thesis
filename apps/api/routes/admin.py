@@ -257,10 +257,44 @@ def reject_user(user_id):
         if user.role != 'resident':
             return jsonify({'error': 'User is not a resident'}), 400
         
-        # Reject the user (deactivate)
+        # Reject the user (deactivate and reset verification flags)
+        old_values = {
+            'email_verified': user.email_verified,
+            'admin_verified': user.admin_verified,
+            'is_active': user.is_active,
+        }
+
+        user.email_verified = False
+        user.email_verified_at = None
+        user.admin_verified = False
+        user.admin_verified_at = None
         user.is_active = False
         user.updated_at = datetime.utcnow()
-        
+
+        # Clear stored verification documents to force resubmission on re-registration
+        user.valid_id_front = None
+        user.valid_id_back = None
+        user.selfie_with_id = None
+        user.proof_of_residency = None
+
+        # Audit trail
+        actor_identity = get_jwt_identity()
+        log_generic_action(
+            user_id=actor_identity,
+            municipality_id=municipality_id or user.municipality_id or 0,
+            entity_type='user',
+            entity_id=user.id,
+            action='resident_rejected',
+            actor_role='admin',
+            old_values=old_values,
+            new_values={
+                'email_verified': user.email_verified,
+                'admin_verified': user.admin_verified,
+                'is_active': user.is_active,
+            },
+            notes=reason,
+        )
+
         db.session.commit()
 
         # Send rejection email (best-effort)
@@ -1773,6 +1807,10 @@ def generate_document_request_pdf(request_id: int):
         return jsonify({'message': 'Document generated', 'url': f"/uploads/{rel_path}", 'request': req.to_dict()}), 200
     except Exception as e:
         db.session.rollback()
+        try:
+            current_app.logger.exception("Failed to generate PDF for request %s", request_id)
+        except Exception:
+            pass
         return jsonify({'error': 'Failed to generate PDF', 'details': str(e)}), 500
 
 
@@ -2453,6 +2491,10 @@ def admin_export_entity(entity: str, fmt: str):
 
         return jsonify({'error': 'Unsupported format'}), 400
     except Exception as e:
+        try:
+            current_app.logger.exception("Failed to export %s.%s", entity, fmt)
+        except Exception:
+            pass
         return jsonify({'error': 'Failed to export', 'details': str(e)}), 500
 
 

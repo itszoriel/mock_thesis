@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { marketplaceApi, documentsApi, benefitsApi, handleApiError, showToast } from '@/lib/api'
@@ -23,49 +23,90 @@ export default function DashboardPage() {
   const [selectedApp, setSelectedApp] = useState<MyBenefitApp | null>(null)
   const [claimOpen, setClaimOpen] = useState(false)
   const [claimFor, setClaimFor] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [itemsError, setItemsError] = useState<string | null>(null)
+  const [txError, setTxError] = useState<string | null>(null)
+  const [reqError, setReqError] = useState<string | null>(null)
+  const [appsError, setAppsError] = useState<string | null>(null)
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null)
   const user = useAppStore((s) => s.user)
   const isAuthBootstrapped = useAppStore((s) => s.isAuthBootstrapped)
   const isAuthenticated = useAppStore((s) => s.isAuthenticated)
 
+  const loadDashboardData = useCallback(async () => {
+    if (!isAuthBootstrapped || !isAuthenticated) {
+      setItems([])
+      setTxs([])
+      setReqs([])
+      setApps([])
+      setItemsError(null)
+      setTxError(null)
+      setReqError(null)
+      setAppsError(null)
+      setBlockedMessage(null)
+      return
+    }
+
+    setLoading(true)
+    setBlockedMessage(null)
+    setItemsError(null)
+    setTxError(null)
+    setReqError(null)
+    setAppsError(null)
+
+    const extractStatus = (err: any) => err?.response?.status ?? err?.status ?? null
+
+    const [itemsRes, txRes, reqRes, appsRes] = await Promise.allSettled([
+      marketplaceApi.getMyItems(),
+      marketplaceApi.getMyTransactions(),
+      documentsApi.getMyRequests(),
+      benefitsApi.getMyApplications(),
+    ])
+
+    if (itemsRes.status === 'fulfilled') {
+      setItems((itemsRes.value.data?.items || []).slice(0, 5))
+    } else {
+      const status = extractStatus(itemsRes.reason)
+      if (status === 403) {
+        setBlockedMessage('Your account is still under admin review. You can browse but cannot submit new requests yet.')
+      }
+      setItemsError(handleApiError(itemsRes.reason, 'Unable to load your marketplace items.'))
+    }
+
+    if (txRes.status === 'fulfilled') {
+      const asBuyer = (txRes.value.data?.as_buyer || []).map((t: any) => ({ ...t, as: 'buyer' }))
+      const asSeller = (txRes.value.data?.as_seller || []).map((t: any) => ({ ...t, as: 'seller' }))
+      setTxs([...(asBuyer as any[]), ...(asSeller as any[])].slice(0, 5))
+    } else {
+      setTxError(handleApiError(txRes.reason, 'Unable to load your transactions.'))
+    }
+
+    if (reqRes.status === 'fulfilled') {
+      setReqs((reqRes.value.data?.requests || []).slice(0, 5))
+    } else {
+      setReqError(handleApiError(reqRes.reason, 'Unable to load your document requests.'))
+    }
+
+    if (appsRes.status === 'fulfilled') {
+      setApps(((appsRes.value.data?.applications || []) as any[]))
+    } else {
+      setAppsError(handleApiError(appsRes.reason, 'Unable to load your benefit applications.'))
+    }
+
+    setLoading(false)
+  }, [isAuthBootstrapped, isAuthenticated])
+
   useEffect(() => {
     let cancelled = false
-    const load = async () => {
-      setLoading(true)
-      if (!cancelled) setError(null)
-      try {
-        if (!isAuthBootstrapped || !isAuthenticated) {
-          if (!cancelled) { setItems([]); setTxs([]); setReqs([]); setApps([]) }
-          return
-        }
-        const [myItemsRes, myTxRes, myReqRes, myAppsRes] = await Promise.all([
-          marketplaceApi.getMyItems(),
-          marketplaceApi.getMyTransactions(),
-          documentsApi.getMyRequests(),
-          benefitsApi.getMyApplications(),
-        ])
-        if (!cancelled) {
-          setItems((myItemsRes.data?.items || []).slice(0, 5))
-          const asBuyer = (myTxRes.data?.as_buyer || []).map((t: any) => ({ ...t, as: 'buyer' }))
-          const asSeller = (myTxRes.data?.as_seller || []).map((t: any) => ({ ...t, as: 'seller' }))
-          setTxs([...(asBuyer as any[]), ...(asSeller as any[])].slice(0, 5))
-          setReqs((myReqRes.data?.requests || []).slice(0, 5))
-          setApps(((myAppsRes.data?.applications || []) as any[]))
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          setItems([]); setTxs([]); setReqs([]); setApps([])
-          const msg = handleApiError(err, 'We could not load your dashboard data yet.')
-          setError(msg)
-          showToast(msg, 'error')
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
+    ;(async () => {
+      if (cancelled) return
+      await loadDashboardData()
+    })()
     return () => { cancelled = true }
-  }, [isAuthenticated, isAuthBootstrapped])
+  }, [loadDashboardData])
+
+  const retryLoad = useCallback(async () => {
+    await loadDashboardData()
+  }, [loadDashboardData])
 
   return (
     <div className="container-responsive py-8 md:py-10">
@@ -113,9 +154,18 @@ export default function DashboardPage() {
         <div className="pointer-events-none absolute -left-10 -bottom-10 h-40 w-40 rounded-full bg-emerald-200/40 blur-3xl" />
       </div>
 
-      {error && (
-        <div className="mt-6 rounded-md border border-orange-200 bg-orange-50 text-orange-800 px-4 py-3 text-sm">
-          {error}
+      {blockedMessage && (
+        <div className="mt-6 rounded-md border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
+          {blockedMessage}
+        </div>
+      )}
+
+      {(itemsError || txError || reqError || appsError) && (
+        <div className="mt-6 rounded-md border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-3">
+          <span>Some sections failed to load. You can keep browsing with the latest available data.</span>
+          <button type="button" className="btn-secondary text-sm" onClick={retryLoad}>
+            Try again
+          </button>
         </div>
       )}
 
@@ -140,80 +190,103 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
-          <ListCard
-            title="My Items"
-            icon={<Package size={18} />}
-            emptyLabel="No items yet."
-            footer={<Link to="/my-marketplace" className="text-sm text-blue-700 hover:underline inline-flex items-center gap-1">View My Marketplace<ArrowRight size={14} /></Link>}
-            entries={items.map((it) => ({ id: it.id, primary: it.title, status: it.status }))}
-            renderAction={(e) => (
-              <button
-                className="text-xs px-2 py-1 rounded border border-rose-200 text-rose-700 hover:bg-rose-50"
-                onClick={async () => {
-                  if (!window.confirm('Delete this item? This cannot be undone.')) return
-                  try {
-                    await marketplaceApi.deleteItem(Number(e.id))
-                    setItems((prev) => prev.filter((i) => i.id !== e.id))
-                  } catch {}
-                }}
-              >
-                Delete
-              </button>
-            )}
-          />
-
-          <ListCard
-            title="My Transactions"
-            icon={<ShoppingBag size={18} />}
-            emptyLabel="No transactions yet."
-            footer={<Link to="/my-marketplace?tab=transactions" className="text-sm text-blue-700 hover:underline inline-flex items-center gap-1">See all<ArrowRight size={14} /></Link>}
-            entries={txs.map((t) => ({ id: t.id, primary: t.transaction_type, status: t.status, extra: { as: t.as } }))}
-            renderAction={(e) => (
-              e.status === 'pending' && e.extra?.as === 'seller' ? (
-                <Link
-                  to="/my-marketplace?tab=transactions"
-                  className="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                >
-                  Accept
-                </Link>
-              ) : null
-            )}
-          />
-
-          <ListCard
-            title="My Document Requests"
-            icon={<FileText size={18} />}
-            emptyLabel="No requests yet."
-            footer={<Link to="/documents?tab=requests" className="text-sm text-blue-700 hover:underline inline-flex items-center gap-1">Open documents<ArrowRight size={14} /></Link>}
-            entries={reqs.map((r: any) => ({ id: r.id, primary: `${r.document_type?.name || 'Document'} • ${r.request_number || ''}`.trim(), status: r.status, href: `/dashboard/requests/${r.id}`, extra: r }))}
-            renderAction={(e) => {
-              const extra = (e as any).extra || {}
-              const isReadyPickup = String(extra.status || '').toLowerCase() === 'ready' && String(extra.delivery_method || '').toLowerCase() !== 'digital'
-              if (!isReadyPickup) return null
-              return (
+          <div className="space-y-2">
+            <ListCard
+              title="My Items"
+              icon={<Package size={18} />}
+              emptyLabel="No items yet."
+              footer={<Link to="/my-marketplace" className="text-sm text-blue-700 hover:underline inline-flex items-center gap-1">View My Marketplace<ArrowRight size={14} /></Link>}
+              entries={items.map((it) => ({ id: it.id, primary: it.title, status: it.status }))}
+              renderAction={(e) => (
                 <button
-                  className="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                  onClick={() => { setClaimFor(Number(extra.id)); setClaimOpen(true) }}
-                >View Claim Ticket</button>
-              )
-            }}
-          />
-
-          <ListCard
-            title="My Benefit Applications"
-            icon={<FileText size={18} />}
-            emptyLabel="No applications yet."
-            footer={<Link to="/benefits?tab=applications" className="text-sm text-blue-700 hover:underline inline-flex items-center gap-1">Open benefits<ArrowRight size={14} /></Link>}
-            entries={apps.map((a) => ({ id: a.id, primary: a.program?.name || a.application_number, status: a.status, extra: a }))}
-            renderAction={(e) => (
-              <button
-                className="text-xs px-2 py-1 rounded border border-ocean-200 text-ocean-700 hover:bg-ocean-50"
-                onClick={() => { setSelectedApp(e.extra as MyBenefitApp); setAppModalOpen(true) }}
-              >
-                View Proof
-              </button>
+                  className="text-xs px-2 py-1 rounded border border-rose-200 text-rose-700 hover:bg-rose-50"
+                  onClick={async () => {
+                    if (!window.confirm('Delete this item? This cannot be undone.')) return
+                    try {
+                      await marketplaceApi.deleteItem(Number(e.id))
+                      setItems((prev) => prev.filter((i) => i.id !== e.id))
+                    } catch (err: any) {
+                      const msg = handleApiError(err, 'Unable to delete item right now.')
+                      showToast(msg, 'error')
+                    }
+                  }}
+                >
+                  Delete
+                </button>
+              )}
+            />
+            {itemsError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{itemsError}</p>
             )}
-          />
+          </div>
+
+          <div className="space-y-2">
+            <ListCard
+              title="My Transactions"
+              icon={<ShoppingBag size={18} />}
+              emptyLabel="No transactions yet."
+              footer={<Link to="/my-marketplace?tab=transactions" className="text-sm text-blue-700 hover:underline inline-flex items-center gap-1">See all<ArrowRight size={14} /></Link>}
+              entries={txs.map((t) => ({ id: t.id, primary: t.transaction_type, status: t.status, extra: { as: t.as } }))}
+              renderAction={(e) => (
+                e.status === 'pending' && e.extra?.as === 'seller' ? (
+                  <Link
+                    to="/my-marketplace?tab=transactions"
+                    className="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                  >
+                    Accept
+                  </Link>
+                ) : null
+              )}
+            />
+            {txError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{txError}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <ListCard
+              title="My Document Requests"
+              icon={<FileText size={18} />}
+              emptyLabel="No requests yet."
+              footer={<Link to="/documents?tab=requests" className="text-sm text-blue-700 hover:underline inline-flex items-center gap-1">Open documents<ArrowRight size={14} /></Link>}
+              entries={reqs.map((r: any) => ({ id: r.id, primary: `${r.document_type?.name || 'Document'} • ${r.request_number || ''}`.trim(), status: r.status, href: `/dashboard/requests/${r.id}`, extra: r }))}
+              renderAction={(e) => {
+                const extra = (e as any).extra || {}
+                const isReadyPickup = String(extra.status || '').toLowerCase() === 'ready' && String(extra.delivery_method || '').toLowerCase() !== 'digital'
+                if (!isReadyPickup) return null
+                return (
+                  <button
+                    className="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                    onClick={() => { setClaimFor(Number(extra.id)); setClaimOpen(true) }}
+                  >View Claim Ticket</button>
+                )
+              }}
+            />
+            {reqError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{reqError}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <ListCard
+              title="My Benefit Applications"
+              icon={<FileText size={18} />}
+              emptyLabel="No applications yet."
+              footer={<Link to="/benefits?tab=applications" className="text-sm text-blue-700 hover:underline inline-flex items-center gap-1">Open benefits<ArrowRight size={14} /></Link>}
+              entries={apps.map((a) => ({ id: a.id, primary: a.program?.name || a.application_number, status: a.status, extra: a }))}
+              renderAction={(e) => (
+                <button
+                  className="text-xs px-2 py-1 rounded border border-ocean-200 text-ocean-700 hover:bg-ocean-50"
+                  onClick={() => { setSelectedApp(e.extra as MyBenefitApp); setAppModalOpen(true) }}
+                >
+                  View Proof
+                </button>
+              )}
+            />
+            {appsError && (
+              <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{appsError}</p>
+            )}
+          </div>
         </div>
       )}
 

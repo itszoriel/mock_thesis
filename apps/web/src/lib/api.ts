@@ -30,6 +30,12 @@ export const authApi = {
     if (files.selfie_with_id) form.append('selfie_with_id', files.selfie_with_id)
     return api.post('/api/auth/verification-docs', form, { headers: { 'Content-Type': 'multipart/form-data' } })
   },
+  requestPasswordReset: (payload: { email: string; username: string; date_of_birth: string }) =>
+    api.post('/api/auth/forgot-password', payload),
+  verifyPasswordResetToken: (token: string) =>
+    api.post('/api/auth/forgot-password/verify', { token }),
+  resetPassword: (payload: { token: string; new_password: string; confirm_password?: string }) =>
+    api.post('/api/auth/reset-password', payload),
 }
 
 export const municipalityApi = {

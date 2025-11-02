@@ -3,7 +3,7 @@
  * Component for managing user verification requests
  */
 import { useState, useEffect } from 'react'
-import { userApi, handleApiError, mediaUrl } from '../lib/api'
+import { userApi, handleApiError, mediaUrl, showToast } from '../lib/api'
 
 interface User {
   id: number
@@ -75,8 +75,11 @@ export default function UserVerificationList({
         setShowModal(false)
         setSelectedUser(null)
       }
+      showToast('Resident marked as verified.', 'success')
     } catch (err: any) {
-      setError(handleApiError(err))
+      const msg = handleApiError(err)
+      setError(msg)
+      showToast(msg, 'error')
     } finally {
       setActionLoading(null)
     }
@@ -85,8 +88,13 @@ export default function UserVerificationList({
   // Handle user rejection
   const handleRejectUser = async (userId: number, reason: string) => {
     try {
+      const customReason = window.prompt('Enter a reason for rejection (optional):', reason)
+      if (customReason === null) {
+        return
+      }
+      const finalReason = customReason.trim() || reason
       setActionLoading(userId)
-      await userApi.rejectUser(userId, reason)
+      await userApi.rejectUser(userId, finalReason)
       
       // Remove user from list
       setUsers(prev => prev.filter(user => user.id !== userId))
@@ -95,8 +103,11 @@ export default function UserVerificationList({
       // Close modal
       setShowModal(false)
       setSelectedUser(null)
+      showToast('Resident rejected and notified via email.', 'success')
     } catch (err: any) {
-      setError(handleApiError(err))
+      const msg = handleApiError(err)
+      setError(msg)
+      showToast(msg, 'error')
     } finally {
       setActionLoading(null)
     }

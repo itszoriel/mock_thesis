@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { X } from 'lucide-react'
 import GatedAction from '@/components/GatedAction'
@@ -29,6 +29,8 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState<boolean>(true)
   const [creatingTxId, setCreatingTxId] = useState<number | null>(null)
   const [myPending, setMyPending] = useState<Record<number, string>>({})
+  const [listError, setListError] = useState<string | null>(null)
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null)
   const isViewingMismatch = !!userMunicipalityId && !!selectedMunicipality?.id && userMunicipalityId !== selectedMunicipality.id
   const isAuthenticated = useAppStore((s) => s.isAuthenticated)
 
@@ -40,47 +42,61 @@ export default function MarketplacePage() {
     return p
   }, [selectedMunicipality?.id, category, type])
 
-  useEffect(() => {
-    let cancelled = false
-    const load = async () => {
-      setLoading(true)
-      try {
-        const res = await marketplaceApi.getItems(params)
-        if (!cancelled) setItems(res.data?.items || [])
-        // Also load my transactions to reflect requested state (only if authenticated)
-        try {
-          if (isAuthenticated) {
-            const tx = await marketplaceApi.getMyTransactions()
-            const asBuyer = (tx as any)?.data?.as_buyer || (tx as any)?.as_buyer || []
-            const pendingMap: Record<number, string> = {}
-            for (const t of asBuyer) {
-              if (t.status === 'pending' && typeof t.item_id === 'number') pendingMap[t.item_id] = 'pending'
-            }
-            if (!cancelled) setMyPending(pendingMap)
-          } else {
-            if (!cancelled) setMyPending({})
-          }
-        } catch (err: any) {
-          if (!cancelled) showToast(handleApiError(err, 'Failed to load marketplace activity'), 'error')
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          setItems([])
-          showToast(handleApiError(err, 'Failed to load marketplace items'), 'error')
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+  const loadMarketplace = useCallback(async (cancelRef?: { current: boolean }) => {
+    const isCancelled = () => cancelRef?.current === true
+    setLoading(true)
+    if (!isCancelled()) {
+      setListError(null)
+      setBlockedMessage(null)
     }
-    load()
-    return () => { cancelled = true }
-  }, [params])
+    try {
+      const res = await marketplaceApi.getItems(params)
+      if (!isCancelled()) setItems(res.data?.items || [])
+
+      if (isAuthenticated) {
+        try {
+          const tx = await marketplaceApi.getMyTransactions()
+          const asBuyer = (tx as any)?.data?.as_buyer || (tx as any)?.as_buyer || []
+          const pendingMap: Record<number, string> = {}
+          for (const t of asBuyer) {
+            if (t.status === 'pending' && typeof t.item_id === 'number') pendingMap[t.item_id] = 'pending'
+          }
+          if (!isCancelled()) setMyPending(pendingMap)
+        } catch (err: any) {
+          if (!isCancelled()) showToast(handleApiError(err, 'Failed to load marketplace activity'), 'error')
+        }
+      } else if (!isCancelled()) {
+        setMyPending({})
+      }
+    } catch (err: any) {
+      if (!isCancelled()) {
+        const status = err?.response?.status ?? err?.status ?? null
+        if (status === 403) {
+          setBlockedMessage('Your account is waiting for admin approval. Marketplace posting and requests are disabled until approval is complete.')
+        }
+        const message = handleApiError(err, 'Failed to load marketplace items')
+        setListError(message)
+        showToast(message, 'error')
+      }
+    } finally {
+      if (!isCancelled()) setLoading(false)
+    }
+  }, [isAuthenticated, params])
+
+  useEffect(() => {
+    const cancelRef = { current: false }
+    loadMarketplace(cancelRef)
+    return () => { cancelRef.current = true }
+  }, [loadMarketplace])
 
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState<any>({ title: '', description: '', category: '', condition: 'good', transaction_type: 'sell', price: '' })
   const [files, setFiles] = useState<File[]>([])
   const [error, setError] = useState<string>('')
+  const retryLoad = useCallback(() => {
+    void loadMarketplace()
+  }, [loadMarketplace])
 
   return (
     <div className="container-responsive py-12">
@@ -119,6 +135,19 @@ export default function MarketplacePage() {
           ))}
         </select>
       </div>
+
+      {blockedMessage && (
+        <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">
+          {blockedMessage}
+        </div>
+      )}
+
+      {listError && (
+        <div className="mb-4 rounded-md border border-red-200 bg-red-50 text-red-700 px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-3">
+          <span>{listError}</span>
+          <button type="button" className="btn-secondary text-sm" onClick={retryLoad}>Retry</button>
+        </div>
+      )}
 
       {loading ? (
         <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

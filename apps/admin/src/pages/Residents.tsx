@@ -196,8 +196,11 @@ export default function Residents() {
       setActionLoading(id)
       await userApi.verifyUser(Number(id))
       updateRowStatus(id, 'verified')
+      showToast('Resident marked as verified.', 'success')
     } catch (err: any) {
-      setError(handleApiError(err))
+      const msg = handleApiError(err)
+      setError(msg)
+      showToast(msg, 'error')
     } finally {
       setActionLoading(null)
     }
@@ -212,8 +215,11 @@ export default function Residents() {
       setActionLoading(id)
       await userApi.rejectUser(Number(id), reason)
       updateRowStatus(id, 'suspended')
+      showToast('Resident rejected and notified via email.', 'success')
     } catch (err: any) {
-      setError(handleApiError(err))
+      const msg = handleApiError(err)
+      setError(msg)
+      showToast(msg, 'error')
     } finally {
       setActionLoading(null)
     }

@@ -5,6 +5,8 @@ User registration, login, email verification
 from flask import Blueprint, request, jsonify, current_app
 from sqlalchemy import func
 import sqlite3
+import secrets
+import hashlib
 from sqlalchemy.exc import OperationalError as SAOperationalError, ProgrammingError as SAProgrammingError
 from flask_jwt_extended import (
     create_access_token, 
@@ -39,6 +41,10 @@ try:
 except ImportError:
     from models.token_blacklist import TokenBlacklist
 try:
+    from apps.api.models.password_reset import PasswordResetToken
+except ImportError:
+    from models.password_reset import PasswordResetToken
+try:
     from apps.api.utils import (
         validate_email,
         validate_username,
@@ -66,6 +72,24 @@ except ImportError:
     )
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
+
+
+def _hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode('utf-8')).hexdigest()
+
+
+def _parse_date(value: str | None):
+    if not value:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%m/%d/%Y'):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except ValueError:
+            continue
+    return None
 
 
 @auth_bp.route('/refresh-status', methods=['GET'])
@@ -231,24 +255,36 @@ def login():
         password = data.get('password')
         
         if not username_or_email or not password:
+            current_app.logger.warning("Login attempt missing credentials")
             return jsonify({'error': 'Username/email and password are required'}), 400
         
         # Find user by username or email (case-insensitive)
         ue = (username_or_email or '').lower()
+        current_app.logger.info("Login attempt for %s", ue)
         user = User.query.filter(
             (func.lower(User.username) == ue) |
             (func.lower(User.email) == ue)
         ).first()
         
         if not user:
+            current_app.logger.warning("Login failed: user not found for %s", ue)
             return jsonify({'error': 'Invalid credentials'}), 401
         
         # Check password
-        if not bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
+        try:
+            password_hash = user.password_hash or ''
+            valid_password = password_hash and bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+        except Exception as exc:
+            current_app.logger.exception("Login password check failed for %s: %s", ue, exc)
+            valid_password = False
+
+        if not valid_password:
+            current_app.logger.warning("Login failed: invalid password for %s", ue)
             return jsonify({'error': 'Invalid credentials'}), 401
         
         # Check if account is active
         if not user.is_active:
+            current_app.logger.warning("Login blocked: inactive account for %s", ue)
             return jsonify({'error': 'Account is deactivated'}), 403
         
         # Update last login
@@ -267,7 +303,6 @@ def login():
             additional_claims={"role": user.role}
         )
         
-        from flask import jsonify
         resp = jsonify({
             'message': 'Login successful',
             'access_token': access_token,
@@ -279,6 +314,7 @@ def login():
         return resp, 200
     
     except Exception as e:
+        current_app.logger.exception("Login error for %s", username_or_email)
         return jsonify({'error': 'Login failed', 'details': str(e)}), 500
 
 
@@ -305,6 +341,146 @@ def logout():
     
     except Exception as e:
         return jsonify({'error': 'Logout failed', 'details': str(e)}), 500
+
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+def forgot_password():
+    """Initiate password reset after verifying email, username, and birthday."""
+    payload = request.get_json(silent=True) or {}
+    email = (payload.get('email') or '').strip().lower()
+    username_input = (payload.get('username') or '').strip()
+    dob_input = payload.get('date_of_birth') or payload.get('birthday')
+
+    if not email or not username_input or not dob_input:
+        return jsonify({'error': 'email, username, and date_of_birth are required'}), 400
+
+    dob = _parse_date(dob_input)
+    if dob is None:
+        return jsonify({'error': 'Invalid date_of_birth format'}), 400
+
+    response_message = {'message': 'If the details match our records, you will receive a password reset email shortly.'}
+
+    try:
+        user = User.query.filter(func.lower(User.email) == email).first()
+        verified = bool(
+            user
+            and user.username
+            and user.date_of_birth
+            and user.username.lower() == username_input.lower()
+            and user.date_of_birth == dob
+        )
+
+        if not verified:
+            current_app.logger.info('Password reset verification failed for email=%s username=%s', email, username_input)
+            return jsonify(response_message), 200
+
+        now = datetime.utcnow()
+
+        # Invalidate previous unused tokens
+        active_tokens = PasswordResetToken.query.filter(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None)
+        ).all()
+        for token in active_tokens:
+            token.used_at = now
+
+        raw_token = secrets.token_urlsafe(48)
+        token_hash = _hash_reset_token(raw_token)
+
+        reset_token = PasswordResetToken(
+            user_id=user.id,
+            token_hash=token_hash,
+            expires_at=now + timedelta(hours=1),
+            last_ip=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        db.session.add(reset_token)
+
+        web_base = current_app.config.get('WEB_URL') or 'http://localhost:3000'
+        web_base = web_base.rstrip('/')
+        reset_link = f"{web_base}/reset-password?token={raw_token}"
+
+        try:
+            from apps.api.utils.email_sender import send_password_reset_email
+        except ImportError:  # pragma: no cover
+            from utils.email_sender import send_password_reset_email
+
+        try:
+            send_password_reset_email(user.email, reset_link, user.first_name or user.username)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception('Failed to send password reset email to %s', user.email)
+            return jsonify({'error': 'We could not send the reset email at this time.'}), 500
+
+        return jsonify(response_message), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Forgot password error for email=%s', email)
+        return jsonify({'error': 'Failed to process password reset request', 'details': str(e)}), 500
+
+
+@auth_bp.route('/forgot-password/verify', methods=['POST'])
+def verify_password_token():
+    data = request.get_json(silent=True) or {}
+    token = (data.get('token') or '').strip()
+    if not token:
+        return jsonify({'error': 'Token is required'}), 400
+
+    token_hash = _hash_reset_token(token)
+    reset_token = PasswordResetToken.query.filter_by(token_hash=token_hash).first()
+    if not reset_token or not reset_token.is_valid():
+        return jsonify({'error': 'Invalid or expired token'}), 400
+
+    return jsonify({'valid': True}), 200
+
+
+@auth_bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json(silent=True) or {}
+    token = (data.get('token') or '').strip()
+    new_password = data.get('new_password') or ''
+    confirm_password = data.get('confirm_password')
+
+    if not token or not new_password:
+        return jsonify({'error': 'Token and new_password are required'}), 400
+    if confirm_password is not None and new_password != confirm_password:
+        return jsonify({'error': 'Passwords do not match'}), 400
+
+    try:
+        new_password = validate_password(new_password)
+    except ValidationError as ve:
+        return jsonify({'error': str(ve)}), 400
+
+    token_hash = _hash_reset_token(token)
+    reset_token = PasswordResetToken.query.filter_by(token_hash=token_hash).first()
+    if not reset_token or not reset_token.is_valid():
+        return jsonify({'error': 'Invalid or expired token'}), 400
+
+    user = User.query.get(reset_token.user_id)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    try:
+        user.password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        user.updated_at = datetime.utcnow()
+
+        reset_token.mark_used()
+
+        # Invalidate other tokens for this user
+        others = PasswordResetToken.query.filter(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None)
+        ).all()
+        for other in others:
+            other.mark_used()
+
+        db.session.commit()
+        return jsonify({'message': 'Password updated successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.exception('Reset password error for user_id=%s', reset_token.user_id)
+        return jsonify({'error': 'Failed to reset password', 'details': str(e)}), 500
 
 
 @auth_bp.route('/refresh', methods=['POST'])
