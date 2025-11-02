@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { authApi, handleApiError } from '@/lib/api'
@@ -114,7 +114,7 @@ export default function ResetPasswordPage() {
     </form>
   )
 
-  let content: JSX.Element
+  let content: ReactNode
   if (viewState === 'checking') {
     content = <div className="text-center text-gray-600">Verifying your password reset link…</div>
   } else if (viewState === 'invalid') {
