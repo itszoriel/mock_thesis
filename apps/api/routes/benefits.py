@@ -1,7 +1,7 @@
 """Public/resident Benefits routes (programs and applications)."""
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 
 try:
@@ -49,12 +49,15 @@ def list_programs():
         programs = query.order_by(BenefitProgram.created_at.desc()).all()
 
         # Auto-complete expired programs before returning
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         changed = False
         for p in programs:
             try:
                 if p.is_active and p.duration_days and p.created_at:
-                    if p.created_at + timedelta(days=int(p.duration_days)) <= now:
+                    created_at = p.created_at
+                    if created_at.tzinfo is None:
+                        created_at = created_at.replace(tzinfo=timezone.utc)
+                    if created_at + timedelta(days=int(p.duration_days)) <= now:
                         p.is_active = False
                         p.is_accepting_applications = False
                         p.completed_at = now
