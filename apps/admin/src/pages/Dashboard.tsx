@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { adminApi, handleApiError, userApi, issueApi, marketplaceApi, announcementApi, showToast } from '../lib/api'
 import UserVerificationList from '../components/UserVerificationList'
 import { useNavigate } from 'react-router-dom'
@@ -7,20 +7,31 @@ import type { AdminState } from '../lib/store'
 import { StatCard, Card, Button, Select } from '@munlink/ui'
 import { Hand, Users, AlertTriangle, ShoppingBag, Megaphone } from 'lucide-react'
 
+type ActivityItem = { icon: string; text: string; who?: string; ts: number; color: 'ocean'|'forest'|'sunset'|'purple'|'red' }
+type OverviewItem = { label: string; value: number; max: number; color: 'ocean'|'forest'|'sunset'|'red' }
+
 export default function Dashboard() {
   const user = useAdminStore((state: AdminState) => state.user)
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [dash, setDash] = useState<{ pending_verifications?: number; active_issues?: number; marketplace_items?: number; announcements?: number } | null>(null)
-  const [activity, setActivity] = useState<Array<{ icon: string; text: string; who?: string; ts: number; color: 'ocean'|'forest'|'sunset'|'purple'|'red' }>>([])
-  const [overview, setOverview] = useState<Array<{ label: string; value: number; max: number; color: 'ocean'|'forest'|'sunset'|'red' }>>([
+  const [activity, setActivity] = useState<ActivityItem[]>([])
+  const [overview, setOverview] = useState<OverviewItem[]>([
     { label: 'Verifications', value: 0, max: 50, color: 'ocean' },
     { label: 'Documents', value: 0, max: 100, color: 'forest' },
     { label: 'Marketplace', value: 0, max: 50, color: 'sunset' },
     { label: 'Issues', value: 0, max: 50, color: 'red' },
   ])
   const [recentAnnouncements, setRecentAnnouncements] = useState<any[]>([])
+  const [activityExpanded, setActivityExpanded] = useState(false)
+  const [overviewExpanded, setOverviewExpanded] = useState(false)
+
+  const adminMunicipalityId = useMemo(() => {
+    const raw = user?.admin_municipality_id ?? user?.municipality_id
+    const parsed = Number(raw)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null
+  }, [user?.admin_municipality_id, user?.municipality_id])
 
   // Map color token to explicit Tailwind gradient classes so JIT includes them
   const gradientClass = (color: 'ocean'|'forest'|'sunset'|'red') => {
@@ -85,10 +96,22 @@ export default function Dashboard() {
         marketplaceApi.getMarketplaceStats(),
       ])
 
-      const pendingUsers = pendingUsersRes.status === 'fulfilled' ? ((pendingUsersRes.value as any)?.data?.users || (pendingUsersRes.value as any)?.users || []) : []
-      const issues = issuesRes.status === 'fulfilled' ? ((issuesRes.value as any)?.data?.data || (issuesRes.value as any)?.data || (issuesRes.value as any)?.issues || []) : []
-      const items = itemsRes.status === 'fulfilled' ? (((itemsRes.value as any)?.data?.data?.items) || (itemsRes.value as any)?.data?.items || (itemsRes.value as any)?.items || []) : []
-      const announcements = announcementsRes.status === 'fulfilled' ? (((announcementsRes.value as any)?.data?.announcements) || (announcementsRes.value as any)?.announcements || []) : []
+      const matchesMunicipality = (record: any): boolean => {
+        if (!adminMunicipalityId) return true
+        const value = record?.municipality_id ?? record?.municipality?.id ?? record?.admin_municipality_id
+        const parsed = Number(value)
+        return Number.isFinite(parsed) && parsed === adminMunicipalityId
+      }
+
+      const pendingUsersRaw = pendingUsersRes.status === 'fulfilled' ? ((pendingUsersRes.value as any)?.data?.users || (pendingUsersRes.value as any)?.users || []) : []
+      const issuesRaw = issuesRes.status === 'fulfilled' ? ((issuesRes.value as any)?.data?.data || (issuesRes.value as any)?.data || (issuesRes.value as any)?.issues || []) : []
+      const itemsRaw = itemsRes.status === 'fulfilled' ? (((itemsRes.value as any)?.data?.data?.items) || (itemsRes.value as any)?.data?.items || (itemsRes.value as any)?.items || []) : []
+      const announcementsRaw = announcementsRes.status === 'fulfilled' ? (((announcementsRes.value as any)?.data?.announcements) || (announcementsRes.value as any)?.announcements || []) : []
+
+      const pendingUsers = Array.isArray(pendingUsersRaw) ? pendingUsersRaw.filter(matchesMunicipality) : []
+      const issues = Array.isArray(issuesRaw) ? issuesRaw.filter(matchesMunicipality) : []
+      const items = Array.isArray(itemsRaw) ? itemsRaw.filter(matchesMunicipality) : []
+      const announcements = Array.isArray(announcementsRaw) ? announcementsRaw.filter(matchesMunicipality) : []
       setRecentAnnouncements(announcements.slice(0, 3))
 
       // Update top-level counts as a fallback if dashboard stats are zero/missing
@@ -109,7 +132,7 @@ export default function Dashboard() {
       }))
 
       // Build feed
-      const feed: Array<{ icon: string; text: string; who?: string; ts: number; color: 'ocean'|'forest'|'sunset'|'purple'|'red' }> = []
+      const feed: ActivityItem[] = []
       for (const u of pendingUsers) {
         const ts = new Date(u.created_at || u.updated_at || Date.now()).getTime()
         feed.push({ icon: '👥', text: 'New registration', who: `${u.first_name ?? ''} ${u.last_name ?? ''}`.trim(), ts, color: 'ocean' })
@@ -137,12 +160,13 @@ export default function Dashboard() {
       const documents7 = 0 // Placeholder: no admin documents endpoint; keep 0 for now
       const marketplace7 = items.filter((it: any) => in7(it.created_at)).length
       const issues7 = issues.filter((i: any) => in7(i.created_at)).length
-      setOverview([
+      const overviewData: OverviewItem[] = [
         { label: 'Verifications', value: verifications7, max: Math.max(10, verifications7), color: 'ocean' },
         { label: 'Documents', value: documents7, max: Math.max(10, documents7 || 10), color: 'forest' },
         { label: 'Marketplace', value: marketplace7, max: Math.max(10, marketplace7), color: 'sunset' },
         { label: 'Issues', value: issues7, max: Math.max(10, issues7), color: 'red' },
-      ])
+      ]
+      setOverview(overviewData.slice(0, 10))
     } catch (err: any) {
       setActivity([])
       showToast(handleApiError(err), 'error')
@@ -177,6 +201,9 @@ export default function Dashboard() {
   }
 
   const dateStr = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+
+  const visibleActivity = activityExpanded ? activity.slice(0, 10) : activity.slice(0, 5)
+  const visibleOverview = overviewExpanded ? overview.slice(0, 10) : overview.slice(0, 5)
 
   function IconFromCode({ code, className }: { code: string; className?: string }) {
     if (code === '👥') return <Users className={className || 'w-5 h-5'} aria-hidden="true" />
@@ -256,8 +283,8 @@ export default function Dashboard() {
             {/* Recent Activity */}
             <Card title={<span className="text-xl font-bold">Recent Activity</span>}>
               <div className="space-y-4">
-                {activity.map((a, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 bg-neutral-50 rounded-xl hover:bg-neutral-100 transition-colors">
+                {visibleActivity.map((a, i) => (
+                  <div key={`${a.text}-${a.ts}-${i}`} className="flex items-start gap-3 p-3 bg-neutral-50 rounded-xl hover:bg-neutral-100 transition-colors">
                     <div className={`w-10 h-10 bg-${a.color}-100 rounded-lg flex items-center justify-center text-lg flex-shrink-0`}>
                       <IconFromCode code={a.icon} className="w-5 h-5" />
                     </div>
@@ -269,6 +296,16 @@ export default function Dashboard() {
                 ))}
                 {activity.length === 0 && (
                   <div className="text-sm text-neutral-600">No recent activity.</div>
+                )}
+                {activity.length > 5 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setActivityExpanded((prev) => !prev)}
+                  >
+                    {activityExpanded ? 'Show Less' : 'View All'}
+                  </Button>
                 )}
               </div>
             </Card>
@@ -282,8 +319,8 @@ export default function Dashboard() {
               </Select>
             )}>
               <div className="space-y-4">
-                {overview.map((item, i) => (
-                  <div key={i}>
+                {visibleOverview.map((item, i) => (
+                  <div key={`${item.label}-${i}`}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-neutral-700">{item.label}</span>
                       <span className="text-sm font-bold text-neutral-900">{item.value}</span>
@@ -301,6 +338,16 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
+                {overview.length > 5 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setOverviewExpanded((prev) => !prev)}
+                  >
+                    {overviewExpanded ? 'Show Less' : 'View All'}
+                  </Button>
+                )}
               </div>
             </Card>
           </div>

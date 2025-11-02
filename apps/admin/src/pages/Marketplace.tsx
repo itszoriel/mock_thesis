@@ -11,7 +11,6 @@ export default function Marketplace() {
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<any[]>([])
   const [stats, setStats] = useState<{ total_items: number; pending_items: number; approved_items: number; rejected_items: number } | null>(null)
-  const userRole = useAdminStore((state: AdminState) => state.user?.role)
   const adminMunicipalityName = useAdminStore((state: AdminState) => state.user?.admin_municipality_name || state.user?.municipality_name)
   const adminMunicipalityId = useAdminStore((state: AdminState) => state.user?.admin_municipality_id)
   const [reviewItem, setReviewItem] = useState<any | null>(null)
@@ -23,24 +22,27 @@ export default function Marketplace() {
       try {
         setError(null)
         setLoading(true)
-        const promises: any[] = []
-        // Stats always
-        promises.push(marketplaceApi.getMarketplaceStats())
-        // Load public available items for this municipality
-        promises.push(marketplaceApi.listPublicItems({
-          municipality_id: adminMunicipalityId,
-          status: 'available',
-          page: 1,
-          per_page: 24,
-        }))
-
-        const [statsRes, itemsRes] = await Promise.allSettled(promises)
+        const [statsRes, itemsRes] = await Promise.allSettled([
+          marketplaceApi.getMarketplaceStats(),
+          marketplaceApi.listPublicItems({
+            municipality_id: adminMunicipalityId,
+            status: 'available',
+            page: 1,
+            per_page: 50,
+          }),
+        ]) 
 
         if (itemsRes.status === 'fulfilled') {
-          // Normalize shape from either endpoint
           const payload: any = (itemsRes.value as any)?.data || itemsRes.value
           const items = payload?.items || payload || []
-          const mapped = items.map((it: any) => {
+          const scoped = Array.isArray(items)
+            ? items.filter((it: any) => {
+                if (!adminMunicipalityId) return true
+                const parsed = Number(it?.municipality_id ?? it?.municipality?.id)
+                return Number.isFinite(parsed) && parsed === Number(adminMunicipalityId)
+              })
+            : []
+          const mapped = scoped.map((it: any) => {
             const u = it.user || it.seller || {}
             const displayName = (
               [u.first_name, u.last_name].filter(Boolean).join(' ').trim() || u.username || it.owner_name || 'User'
@@ -64,6 +66,8 @@ export default function Marketplace() {
             }
           })
           if (mounted) setRows(mapped)
+        } else if (mounted) {
+          setRows([])
         }
 
         if (statsRes.status === 'fulfilled') {
@@ -117,11 +121,11 @@ export default function Marketplace() {
       </div>
 
       {tab === 'items' && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
         {[
           { icon: 'total', label: 'Total Items', value: String(stats?.total_items ?? '—'), color: 'ocean' },
         ].map((stat, i) => (
-          <div key={i} className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-white/50 shadow-lg hover:scale-105 transition-transform">
+          <div key={i} className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 border border-white/50 shadow-lg hover:-translate-y-1 transition-transform">
             <div className={`inline-flex w-12 h-12 bg-${stat.color}-100 rounded-xl items-center justify-center mb-3`}>
               {stat.icon === 'total' && <ShoppingBag className="w-6 h-6" aria-hidden="true" />}
             </div>
@@ -133,52 +137,45 @@ export default function Marketplace() {
       )}
 
       {tab === 'items' && (
-      <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-4 shadow-lg border border-white/50 mb-6 -mx-2 px-2 overflow-x-auto">
-        <div className="inline-flex items-center gap-4 min-w-max">
-          <div className="flex gap-2">
+      <div className="bg-white/80 backdrop-blur-xl rounded-2xl p-4 sm:p-6 shadow-lg border border-white/60 mb-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-2">
             {[
               { value: 'all', label: 'All Items', icon: 'store' },
               { value: 'sell', label: 'For Sale', icon: 'money' },
               { value: 'lend', label: 'For Lending', icon: 'handshake' },
               { value: 'donate', label: 'Free', icon: 'gift' },
             ].map((type) => (
-              <button key={type.value} onClick={() => setFilter(type.value as any)} className={`shrink-0 px-4 py-2 rounded-xl font-medium transition-all ${filter === type.value ? 'bg-ocean-gradient text-white shadow-lg' : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'}`}>
-                <span className="mr-2 inline-flex items-center">
-                  {type.icon === 'store' && <Store className="w-4 h-4" aria-hidden="true" />}
-                  {type.icon === 'money' && <BadgeDollarSign className="w-4 h-4" aria-hidden="true" />}
-                  {type.icon === 'handshake' && <Handshake className="w-4 h-4" aria-hidden="true" />}
-                  {type.icon === 'gift' && <Gift className="w-4 h-4" aria-hidden="true" />}
-                </span>
-                {type.label}
+              <button key={type.value} onClick={() => setFilter(type.value as any)} className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-medium transition-all ${filter === type.value ? 'bg-ocean-gradient text-white shadow-lg' : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'}`}>
+                {type.icon === 'store' && <Store className="w-4 h-4" aria-hidden="true" />}
+                {type.icon === 'money' && <BadgeDollarSign className="w-4 h-4" aria-hidden="true" />}
+                {type.icon === 'handshake' && <Handshake className="w-4 h-4" aria-hidden="true" />}
+                {type.icon === 'gift' && <Gift className="w-4 h-4" aria-hidden="true" />}
+                <span>{type.label}</span>
               </button>
             ))}
           </div>
-          {/* Status filter removed (moderation disabled) */}
-          {userRole === 'admin' ? (
-            <select name="municipalityFilter" id="marketplace-municipality-filter" aria-label="Filter by municipality" className="px-4 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-medium"><option>All Municipalities</option></select>
-          ) : (
-            <div className="px-4 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-sm font-medium inline-flex items-center gap-2" aria-label="Municipality">
-              <svg className="w-4 h-4 text-neutral-500" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm-2 6V6a2 2 0 114 0v2H8z"/></svg>
-              <span className="truncate max-w-[12rem]">{adminMunicipalityName || 'Municipality'}</span>
-            </div>
-          )}
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-100 border border-neutral-200 rounded-xl text-sm font-medium">
+            <svg className="w-4 h-4 text-neutral-500" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm-2 6V6a2 2 0 114 0v2H8z"/></svg>
+            <span className="truncate max-w-[12rem]">{adminMunicipalityName || 'Municipality'}</span>
+          </div>
         </div>
       </div>
       )}
 
       {tab === 'items' && error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>}
       {tab === 'items' && (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
         {loading && [...Array(8)].map((_, i) => (
-          <div key={i} className="bg-white rounded-2xl overflow-hidden shadow-lg p-4">
-            <div className="aspect-square skeleton rounded-xl mb-3" />
+          <div key={`skeleton-${i}`} className="bg-white rounded-2xl overflow-hidden shadow-lg p-4">
+            <div className="aspect-[4/3] skeleton rounded-xl mb-3" />
             <div className="h-4 w-40 skeleton rounded mb-2" />
             <div className="h-3 w-24 skeleton rounded" />
           </div>
         ))}
         {!loading && filtered.map((item) => (
-          <div key={item.id} className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-105">
-            <div className="relative aspect-square bg-neutral-100">
+          <div key={item.id} className="group bg-white rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 flex flex-col">
+            <div className="relative aspect-[4/3] bg-neutral-100">
               {item.image && (
                 <img
                   src={mediaUrl(item.image)}
@@ -194,28 +191,27 @@ export default function Marketplace() {
                   {item.type === 'donate' && <><Gift className="w-4 h-4" aria-hidden="true" /><span>Free</span></>}
                 </span>
               </div>
-              {/* Removed non-functional eye/menu icons to simplify UI */}
               <div className="absolute bottom-3 left-3"><span className="inline-flex items-center gap-1 px-3 py-1 bg-forest-100 text-forest-700 rounded-full text-xs font-semibold"><Check className="w-4 h-4" aria-hidden="true" /> Active</span></div>
             </div>
-            <div className="p-4">
+            <div className="p-4 flex-1 flex flex-col">
               <div className="flex items-start justify-between mb-2">
                 <h3 className="font-bold text-neutral-900 line-clamp-2 flex-1 group-hover:text-ocean-600 transition-colors">{item.title}</h3>
               </div>
-              <p className="text-xs text-neutral-600 mb-3">{item.category}</p>
-                {item.description && (
-                  <p className="text-sm text-neutral-700 mb-3 line-clamp-3 whitespace-pre-line">{item.description}</p>
-                )}
+              <p className="text-xs text-neutral-600 mb-2">{item.category}</p>
+              {item.description && (
+                <p className="text-sm text-neutral-700 mb-3 line-clamp-3 whitespace-pre-line flex-1">{item.description}</p>
+              )}
               <div className="flex items-center gap-2 mb-3 pb-3 border-b border-neutral-200">
                 {item.userPhoto ? (
-                  <img src={mediaUrl(item.userPhoto)} alt="profile" className="w-6 h-6 rounded-full object-cover border" />
+                  <img src={mediaUrl(item.userPhoto)} alt="profile" className="w-8 h-8 rounded-full object-cover border" />
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-ocean-gradient text-white text-xs font-bold flex items-center justify-center border">
+                  <div className="w-8 h-8 rounded-full bg-ocean-gradient text-white text-sm font-bold flex items-center justify-center border">
                     {item.userInitial || 'U'}
                   </div>
                 )}
-                <p className="text-xs text-neutral-700">{item.user}</p>
+                <div className="text-xs text-neutral-700 truncate">{item.user}</div>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center mb-3">
+              <div className="grid grid-cols-3 gap-2 text-center mb-4">
                 <div><p className="text-xs text-neutral-600">Views</p><p className="text-sm font-bold text-neutral-900">{item.views}</p></div>
                 <div><p className="text-xs text-neutral-600">Inquiries</p><p className="text-sm font-bold text-neutral-900">{item.inquiries}</p></div>
                 <div><p className="text-xs text-neutral-600">Posted</p><p className="text-xs font-medium text-neutral-700">{item.posted}</p></div>

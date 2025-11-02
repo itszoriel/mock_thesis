@@ -9,6 +9,7 @@ from apps.api import db
 from apps.api.models.user import User
 from apps.api.models.municipality import Municipality
 from apps.api.models.marketplace import Item
+from apps.api.models.transfer import TransferRequest
 from flask_jwt_extended import create_access_token
 
 
@@ -137,4 +138,48 @@ def test_owner_status_edit_is_ignored(app, client):
         returned = (body.get('item') or {})
         assert returned.get('status') == 'available'
 
+
+def test_request_transfer_flow(app, client):
+    with app.app_context():
+        origin = Municipality(name='Masinloc', slug='masinloc', psgc_code='000000002')
+        target = Municipality(name='Iba', slug='iba-city', psgc_code='000000003')
+        db.session.add_all([origin, target])
+        db.session.commit()
+
+        resident = User(
+            username='mover',
+            email='mover@example.com',
+            password_hash=bcrypt.hashpw(b'Secure12', bcrypt.gensalt()).decode('utf-8'),
+            first_name='Move', last_name='Resident', role='resident',
+            email_verified=True, admin_verified=True,
+            municipality_id=origin.id,
+        )
+        db.session.add(resident)
+        db.session.commit()
+
+        headers = auth_header_for_user(resident.id)
+        resp = client.post('/api/auth/transfer', json={
+            'to_municipality_id': target.id,
+            'notes': 'Relocating for work',
+        }, headers=headers)
+
+        assert resp.status_code == 201
+        payload = resp.json or {}
+        transfer = payload.get('transfer') or {}
+        assert transfer.get('status') == 'pending'
+        assert transfer.get('from_municipality_id') == origin.id
+        assert transfer.get('to_municipality_id') == target.id
+
+        saved = TransferRequest.query.filter_by(user_id=resident.id).first()
+        assert saved is not None
+        assert saved.status == 'pending'
+
+        # Duplicate request should be blocked while pending
+        resp_dup = client.post('/api/auth/transfer', json={
+            'to_municipality_id': target.id,
+            'notes': 'Duplicate request',
+        }, headers=headers)
+        assert resp_dup.status_code == 400
+        body_dup = resp_dup.json or {}
+        assert 'active transfer request' in (body_dup.get('error') or '')
 
