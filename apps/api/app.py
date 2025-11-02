@@ -13,7 +13,7 @@ load_dotenv(os.path.join(project_root, '.env'))
 # Add parent directory to path for absolute imports
 sys.path.insert(0, project_root)
 
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
 import logging
 from flask_cors import CORS
 
@@ -64,6 +64,12 @@ def create_app(config_class=Config):
             "supports_credentials": True
         }
     })
+
+    def _add_cors_headers(resp):
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        return resp
     
     # JWT token blacklist check
     @jwt.token_in_blocklist_loader
@@ -115,27 +121,41 @@ def create_app(config_class=Config):
         }), 200
     
     # Serve uploaded files (public categories only)
-    @app.route('/uploads/<path:filename>')
+    @app.route('/uploads/<path:filename>', methods=['GET', 'OPTIONS'])
     def serve_uploaded_file(filename):
         """Serve uploaded files from the uploads directory"""
+        normalized = filename.replace('\\', '/').lstrip('/')
+
+        if request.method == 'OPTIONS':
+            return _add_cors_headers(app.make_default_options_response())
+
+        # Public allowlist
+        allowed_prefixes = (
+            'marketplace/',
+            'announcements/',
+            'profiles/',
+            'document_requests/',
+            'benefits/',
+            'issues/',
+            'generated_docs/',
+            'exports/',
+        )
+
+        if not any(normalized.startswith(p) for p in allowed_prefixes):
+            response = jsonify({'error': 'Forbidden'})
+            response.status_code = 403
+            return _add_cors_headers(response)
+
+        upload_dir = app.config.get('UPLOAD_FOLDER', 'uploads')
+        directory = str(upload_dir)
+
         try:
-            # Public allowlist
-            allowed_prefixes = (
-                'marketplace/',
-                'announcements/',
-                'profiles/',
-                'document_requests/',
-                'benefits/',
-                'issues/',
-            )
-            normalized = filename.replace('\\', '/').lstrip('/')
-            if not any(normalized.startswith(p) for p in allowed_prefixes):
-                return jsonify({'error': 'Forbidden'}), 403
-            upload_dir = app.config.get('UPLOAD_FOLDER', 'uploads')
-            directory = str(upload_dir)
-            return send_from_directory(directory, normalized)
+            response = send_from_directory(directory, normalized)
+            return _add_cors_headers(response)
         except FileNotFoundError:
-            return jsonify({'error': 'File not found'}), 404
+            response = jsonify({'error': 'File not found'})
+            response.status_code = 404
+            return _add_cors_headers(response)
     
     # Error handlers
     @app.errorhandler(404)
