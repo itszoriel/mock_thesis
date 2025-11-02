@@ -252,8 +252,11 @@ export default function DashboardPage() {
               entries={reqs.map((r: any) => ({ id: r.id, primary: `${r.document_type?.name || 'Document'} • ${r.request_number || ''}`.trim(), status: r.status, href: `/dashboard/requests/${r.id}`, extra: r }))}
               renderAction={(e) => {
                 const extra = (e as any).extra || {}
-                const isReadyPickup = String(extra.status || '').toLowerCase() === 'ready' && String(extra.delivery_method || '').toLowerCase() !== 'digital'
-                if (!isReadyPickup) return null
+                const statusLower = String(extra.status || '').toLowerCase()
+                const deliveryLower = String(extra.delivery_method || '').toLowerCase()
+                const isPickup = deliveryLower !== 'digital'
+                const canViewTicket = isPickup && ['ready', 'picked_up', 'completed'].includes(statusLower)
+                if (!canViewTicket) return null
                 return (
                   <button
                     className="text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50"

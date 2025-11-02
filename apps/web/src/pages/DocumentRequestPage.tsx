@@ -3,11 +3,13 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { documentsApi, mediaUrl } from '@/lib/api'
+import ClaimTicketModal from '@/components/ClaimTicketModal'
 
 export default function DocumentRequestPage() {
   const { id } = useParams()
   const [loading, setLoading] = useState(true)
   const [req, setReq] = useState<any>(null)
+  const [claimOpen, setClaimOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -98,10 +100,32 @@ export default function DocumentRequestPage() {
               <div className="text-xs text-gray-600 mt-2">This link opens your generated document. Keep it safe.</div>
             </div>
           )}
+          {(() => {
+            const statusLower = String(req.status || '').toLowerCase()
+            const deliveryLower = String(req.delivery_method || '').toLowerCase()
+            const canViewTicket = deliveryLower !== 'digital' && ['ready', 'picked_up', 'completed'].includes(statusLower)
+            if (!canViewTicket) return null
+            return (
+              <div className="mt-6">
+                <button
+                  className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                  onClick={() => setClaimOpen(true)}
+                >
+                  View Pickup Ticket
+                </button>
+                <div className="text-xs text-gray-600 mt-2">Show this ticket or QR code at the pickup counter.</div>
+              </div>
+            )
+          })()}
         </div>
       ) : (
         <div className="text-gray-600">Request not found.</div>
       )}
+      <ClaimTicketModal
+        requestId={Number(id)}
+        isOpen={claimOpen}
+        onClose={() => setClaimOpen(false)}
+      />
     </div>
   )
 }

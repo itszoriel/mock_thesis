@@ -140,6 +140,7 @@ def create_app(config_class=Config):
             'issues/',
             'generated_docs/',
             'exports/',
+            'claims/',
         )
 
         if not any(normalized.startswith(p) for p in allowed_prefixes):
