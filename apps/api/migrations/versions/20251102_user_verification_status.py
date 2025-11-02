@@ -1,7 +1,7 @@
 """add user verification status
 
 Revision ID: 20251102_user_verification_status
-Revises: 20251102_benefit_history
+Revises: 20251102_issue_category
 Create Date: 2025-11-02
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = '20251102_user_verification_status'
-down_revision = '20251102_benefit_history'
+down_revision = '20251102_issue_category'
 branch_labels = None
 depends_on = None
 

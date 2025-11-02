@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { useAdminStore } from '../lib/store'
 import type { AdminState } from '../lib/store'
 import { DataTable, Modal, Button } from '@munlink/ui'
-import { X, Check, RotateCcw, Pause, ExternalLink, Hourglass } from 'lucide-react'
+import { Check, RotateCcw, Pause, ExternalLink, Hourglass } from 'lucide-react'
 import TransferRequestCard from '../components/transfers/TransferRequestCard'
 import TransferRequestModal from '../components/transfers/TransferRequestModal'
 
