@@ -60,7 +60,7 @@ def list_programs():
                     if created_at + timedelta(days=int(p.duration_days)) <= now:
                         p.is_active = False
                         p.is_accepting_applications = False
-                        p.completed_at = now
+                        p.completed_at = now.replace(tzinfo=None)
                         changed = True
             except Exception:
                 pass

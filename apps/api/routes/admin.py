@@ -5,7 +5,7 @@ Admin-specific operations with municipality scoping
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, verify_jwt_in_request
 from sqlalchemy import func, and_, or_
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import jwt
 from apps.api import db
@@ -1163,16 +1163,19 @@ def admin_list_benefit_programs():
             .all()
         )
         # Auto-complete expired programs
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         changed = False
         for p in programs:
             try:
                 if p.is_active and p.duration_days and p.created_at:
                     from datetime import timedelta as _td
-                    if p.created_at + _td(days=int(p.duration_days)) <= now:
+                    created_at = p.created_at
+                    if created_at.tzinfo is None or created_at.tzinfo.utcoffset(created_at) is None:
+                        created_at = created_at.replace(tzinfo=timezone.utc)
+                    if created_at + _td(days=int(p.duration_days)) <= now:
                         p.is_active = False
                         p.is_accepting_applications = False
-                        p.completed_at = now
+                        p.completed_at = now.replace(tzinfo=None)
                         changed = True
             except Exception:
                 pass
@@ -1619,10 +1622,10 @@ def admin_complete_benefit_program(program_id: int):
         if program.municipality_id and program.municipality_id != municipality_id:
             return jsonify({'error': 'Program not in your municipality'}), 403
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         program.is_active = False
         program.is_accepting_applications = False
-        program.completed_at = now
+        program.completed_at = now.replace(tzinfo=None)
         db.session.commit()
         return jsonify({'message': 'Program marked as completed', 'program': program.to_dict()}), 200
     except Exception as e:
@@ -1635,7 +1638,7 @@ def admin_complete_benefit_program(program_id: int):
 # ---------------------------------------------
 
 def _parse_range(range_param: str):
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     if range_param == 'last_7_days':
         return now - timedelta(days=7), now
     if range_param == 'last_90_days':
