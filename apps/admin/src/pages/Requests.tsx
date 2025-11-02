@@ -138,8 +138,7 @@ export default function Requests() {
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [moreForId, setMoreForId] = useState<number | null>(null)
   const visibleRows = rows.filter((r) => {
-    // If Ready filter is active, and delivery filter is 'all', force pickup-only per requirements
-    const effectiveDelivery = deliveryFilter === 'all' && statusFilter === 'ready' ? 'pickup' : deliveryFilter
+    const effectiveDelivery = deliveryFilter
     if (effectiveDelivery !== 'all' && r.delivery_method !== (effectiveDelivery === 'pickup' ? 'pickup' : 'digital')) return false
     return true
   })
