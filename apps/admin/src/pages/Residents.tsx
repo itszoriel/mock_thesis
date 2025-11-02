@@ -261,15 +261,24 @@ export default function Residents() {
           {/* Residents Toolbar: Search + Filters */}
           {activeTab==='residents' && (
           <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-4 md:p-6 shadow-lg border border-white/50 mb-6">
-            <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 items-stretch">
-              <div className="flex-1 min-w-0">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-4">
+              <div className="w-full xl:max-w-sm">
                 <div className="relative">
-                  <input type="search" name="resident_search" id="resident-search" aria-label="Search residents by name, email, or ID number" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search by name, email, or ID number..." className="w-full pl-12 pr-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:border-ocean-500 focus:ring-2 focus:ring-ocean-500/20 transition-all" />
+                  <input
+                    type="search"
+                    name="resident_search"
+                    id="resident-search"
+                    aria-label="Search residents by name, email, or ID number"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search by name, email, or ID number..."
+                    className="w-full pl-12 pr-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:border-ocean-500 focus:ring-2 focus:ring-ocean-500/20 transition-all"
+                  />
                   <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                 </div>
               </div>
-              <div className="w-full lg:w-auto -mx-2 px-2 overflow-x-auto lg:overflow-visible">
-                <div className="inline-flex items-center gap-2">
+              <div className="w-full xl:flex-1 xl:min-w-0">
+                <div className="flex flex-wrap items-center gap-2 overflow-x-auto xl:overflow-visible">
                   {[
                     { value: 'all', label: 'All Status', count: counts.all },
                     { value: 'verified', label: 'Verified', count: counts.verified },
@@ -281,7 +290,7 @@ export default function Residents() {
                       key={status.value}
                       onClick={() => setFilter(status.value as any)}
                       aria-pressed={filter === status.value}
-                      className={`shrink-0 px-4 py-2 rounded-xl font-medium transition-all ${filter === status.value ? 'bg-ocean-gradient text-white shadow-lg' : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'}`}
+                      className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === status.value ? 'bg-ocean-gradient text-white shadow-lg' : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'}`}
                     >
                       {status.label}
                       <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${filter === status.value ? 'bg-white/20' : 'bg-neutral-200'}`}>{status.count}</span>
@@ -289,9 +298,8 @@ export default function Residents() {
                   ))}
                 </div>
               </div>
-              {/* Municipality is scoped by admin permissions; show a locked chip instead of a selector */}
               {adminMunicipalityName && (
-                <div className="chip-locked w-full lg:w-auto">
+                <div className="chip-locked w-full sm:w-auto xl:w-auto xl:ml-auto">
                   <svg className="w-4 h-4 text-neutral-500" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm-2 6V6a2 2 0 114 0v2H8z"/></svg>
                   <span className="truncate">{adminMunicipalityName}</span>
                 </div>
