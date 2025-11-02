@@ -245,6 +245,11 @@ export const benefitsAdminApi = {
     apiClient.put(`/api/admin/benefits/programs/${id}`, data).then((res) => res.data),
   completeProgram: (id: number): Promise<ApiResponse> =>
     apiClient.put(`/api/admin/benefits/programs/${id}/complete`, {}).then((res) => res.data),
+  updateApplicationStatus: (
+    id: number,
+    payload: { status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'completed'; rejection_reason?: string; notes?: string }
+  ): Promise<ApiResponse<{ application: any }>> =>
+    apiClient.put(`/api/admin/benefits/applications/${id}/status`, payload).then((res) => res.data),
   deleteProgram: (id: number): Promise<ApiResponse> =>
     apiClient.delete(`/api/admin/benefits/programs/${id}`).then((res) => res.data),
 }

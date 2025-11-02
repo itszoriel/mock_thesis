@@ -248,6 +248,50 @@ export default function Benefits() {
     { icon: '✅', label: 'Approved This Month', value: '—', color: 'purple' },
   ]), [activeCount, beneficiariesTotal])
 
+  const updateApplicationStatus = async (
+    appId: number,
+    status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'completed',
+    options: { rejection_reason?: string; notes?: string } = {}
+  ) => {
+    try {
+      setActionLoading(appId)
+      const response = await benefitsAdminApi.updateApplicationStatus(appId, {
+        status,
+        ...(options.rejection_reason ? { rejection_reason: options.rejection_reason } : {}),
+        ...(options.notes ? { notes: options.notes } : {}),
+      })
+      const updated =
+        (response as any)?.application ||
+        (response as any)?.data?.application ||
+        (response as any) ||
+        null
+      if (updated) {
+        setApplications((prev) =>
+          prev.map((entry: any) => (entry.id === appId ? { ...entry, ...updated } : entry))
+        )
+      } else {
+        setApplications((prev) =>
+          prev.map((entry: any) => (entry.id === appId ? { ...entry, status } : entry))
+        )
+      }
+
+      const successMessage =
+        status === 'approved'
+          ? 'Application approved'
+          : status === 'rejected'
+            ? 'Application rejected'
+            : status === 'under_review'
+              ? 'Application marked under review'
+              : 'Application updated'
+      showToast(successMessage, 'success')
+    } catch (e: any) {
+      const message = handleApiError(e)
+      showToast(message || 'Failed to update application', 'error')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   const openCreate = () => setCreateOpen(true)
   const closeCreate = () => setCreateOpen(false)
   const submitCreate = async (data: any) => {
@@ -473,17 +517,34 @@ export default function Benefits() {
             </div>
             <div className="mt-4 flex flex-col sm:flex-row gap-2 sm:justify-end">
               {app.status !== 'under_review' && app.status !== 'approved' && (
-                <button className="px-3 py-1.5 rounded-lg bg-yellow-100 hover:bg-yellow-200 text-yellow-700 text-sm" onClick={async()=>{
-                  try{ setActionLoading(app.id); await fetch(`${(import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:5000'}/api/admin/benefits/applications/${app.id}/status`, { method:'PUT', headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${useAdminStore.getState().accessToken}` }, body: JSON.stringify({ status:'under_review' }) }); setApplications((prev)=> prev.map((x:any)=> x.id===app.id? { ...x, status:'under_review' }: x)); showToast('Application marked under review', 'success') } catch(e:any){ showToast('Failed to update application', 'error') } finally { setActionLoading(null) }}}>Mark Under Review</button>
+            <button
+              className="px-3 py-1.5 rounded-lg bg-yellow-100 hover:bg-yellow-200 text-yellow-700 text-sm"
+              onClick={() => updateApplicationStatus(app.id, 'under_review')}
+              disabled={actionLoading === app.id}
+            >
+              Mark Under Review
+            </button>
               )}
               {app.status !== 'approved' && (
-                <button className="px-3 py-1.5 rounded-lg bg-forest-100 hover:bg-forest-200 text-forest-700 text-sm" onClick={async()=>{
-                  try{ setActionLoading(app.id); await fetch(`${(import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:5000'}/api/admin/benefits/applications/${app.id}/status`, { method:'PUT', headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${useAdminStore.getState().accessToken}` }, body: JSON.stringify({ status:'approved' }) }); setApplications((prev)=> prev.map((x:any)=> x.id===app.id? { ...x, status:'approved' }: x)); showToast('Application approved', 'success') } catch(e:any){ showToast('Failed to approve application', 'error') } finally { setActionLoading(null) }}}>Approve</button>
+            <button
+              className="px-3 py-1.5 rounded-lg bg-forest-100 hover:bg-forest-200 text-forest-700 text-sm"
+              onClick={() => updateApplicationStatus(app.id, 'approved')}
+              disabled={actionLoading === app.id}
+            >
+              Approve
+            </button>
               )}
               {app.status !== 'rejected' && (
-                <button className="px-3 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 text-sm" onClick={async()=>{
-                  const reason = window.prompt('Enter reason for rejection','Incomplete requirements') || 'Incomplete requirements'
-                  try{ setActionLoading(app.id); await fetch(`${(import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:5000'}/api/admin/benefits/applications/${app.id}/status`, { method:'PUT', headers: { 'Content-Type':'application/json', 'Authorization': `Bearer ${useAdminStore.getState().accessToken}` }, body: JSON.stringify({ status:'rejected', rejection_reason: reason }) }); setApplications((prev)=> prev.map((x:any)=> x.id===app.id? { ...x, status:'rejected', rejection_reason: reason }: x)); showToast('Application rejected', 'success') } catch(e:any){ showToast('Failed to reject application', 'error') } finally { setActionLoading(null) }}}>Reject</button>
+            <button
+              className="px-3 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 text-sm"
+              onClick={() => {
+                const reason = window.prompt('Enter reason for rejection', 'Incomplete requirements') || 'Incomplete requirements'
+                updateApplicationStatus(app.id, 'rejected', { rejection_reason: reason })
+              }}
+              disabled={actionLoading === app.id}
+            >
+              Reject
+            </button>
               )}
             </div>
           </div>
