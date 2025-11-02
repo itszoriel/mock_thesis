@@ -11,7 +11,7 @@ export default function Requests() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<any[]>([])
-  const [stats, setStats] = useState<{ total_requests: number; pending_requests: number; processing_requests: number; ready_requests: number; completed_requests: number } | null>(null)
+  const [stats, setStats] = useState<{ total_requests: number; pending_requests: number; processing_requests: number; ready_requests: number; completed_requests: number; picked_up_requests?: number } | null>(null)
   const [deliveryFilter, setDeliveryFilter] = useState<'all' | 'digital' | 'pickup'>('all')
   const [docTypeModalOpen, setDocTypeModalOpen] = useState(false)
   const [docTypes, setDocTypes] = useState<any[]>([])
@@ -92,12 +92,13 @@ export default function Requests() {
     ;(async () => {
       try {
         // Fetch stats for each status
-        const [allRes, pendingRes, processingRes, readyRes, completedRes] = await Promise.allSettled([
+        const [allRes, pendingRes, processingRes, readyRes, completedRes, pickedUpRes] = await Promise.allSettled([
           adminApi.getRequests({ page: 1, per_page: 1 }),
           adminApi.getRequests({ status: 'pending', page: 1, per_page: 1 }),
           adminApi.getRequests({ status: 'processing', page: 1, per_page: 1 }),
           adminApi.getRequests({ status: 'ready', page: 1, per_page: 1 }),
           adminApi.getRequests({ status: 'completed', page: 1, per_page: 1 }),
+          adminApi.getRequests({ status: 'picked_up', page: 1, per_page: 1 }),
         ])
         
         const total = allRes.status === 'fulfilled' ? (allRes.value.pagination?.total || 0) : 0
@@ -105,13 +106,15 @@ export default function Requests() {
         const processing = processingRes.status === 'fulfilled' ? (processingRes.value.pagination?.total || 0) : 0
         const ready = readyRes.status === 'fulfilled' ? (readyRes.value.pagination?.total || 0) : 0
         const completed = completedRes.status === 'fulfilled' ? (completedRes.value.pagination?.total || 0) : 0
+        const pickedUp = pickedUpRes.status === 'fulfilled' ? (pickedUpRes.value.pagination?.total || 0) : 0
         
         if (mounted) setStats({ 
           total_requests: total,
           pending_requests: pending,
           processing_requests: processing,
           ready_requests: ready,
-          completed_requests: completed
+          completed_requests: completed + pickedUp,
+          picked_up_requests: pickedUp,
         })
       } catch {}
     })()
