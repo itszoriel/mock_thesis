@@ -355,8 +355,8 @@ export default function Residents() {
           {activeTab === 'residents' && (
             <>
               <div className="mt-6 rounded-2xl border border-white/60 bg-white/90 p-6 shadow-lg backdrop-blur">
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
-                  <div className="w-full xl:max-w-md">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="w-full sm:max-w-md">
                     <label htmlFor="resident-search" className="sr-only">Search residents</label>
                     <div className="relative">
                       <input
@@ -372,27 +372,9 @@ export default function Residents() {
                       <svg className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                     </div>
                   </div>
-                  <div className="w-full xl:flex-1 xl:min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {[
-                        { value: 'all', label: 'All Status', count: counts.all },
-                        { value: 'verified', label: 'Verified', count: counts.verified },
-                        { value: 'pending', label: 'Pending', count: counts.pending },
-                        { value: 'needs_revision', label: 'Needs Updates', count: counts.needs_revision },
-                        { value: 'suspended', label: 'Suspended', count: counts.suspended },
-                      ].map((status) => (
-                        <button
-                          key={status.value}
-                          onClick={() => setFilter(status.value as ResidentFilter)}
-                          aria-pressed={filter === status.value}
-                          className={`group inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all ${filter === status.value ? 'border-ocean-500 bg-ocean-50 text-ocean-700 shadow-sm' : 'border-transparent bg-neutral-100 text-neutral-600 hover:bg-neutral-200/80'}`}
-                        >
-                          <span>{status.label}</span>
-                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${filter === status.value ? 'bg-ocean-500/10 text-ocean-700' : 'bg-white text-neutral-500'}`}>{status.count}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <p className="text-sm text-neutral-500 sm:text-right">
+                    Select any summary card above to filter residents by status.
+                  </p>
                 </div>
                 {error && (
                   <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
