@@ -160,7 +160,23 @@ export const mediaUrl = (p?: string): string => {
   const idx = s.indexOf('/uploads/')
   if (idx !== -1) s = s.slice(idx + 9)
   s = s.replace(/^uploads\//, '')
-  const base = (api.defaults.baseURL as string) || (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000'
+  let base: string | undefined = (api.defaults.baseURL as string) || (import.meta as any).env?.VITE_API_URL
+  if (!base || base.includes('localhost')) {
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin
+      if (/https?:\/\/.*-web\./.test(origin)) {
+        base = origin.replace('-web.', '-api.')
+      } else if (/https?:\/\/.*web\./.test(origin)) {
+        base = origin.replace('web.', 'api.')
+      } else if (/https?:\/\/.*-web/.test(origin)) {
+        base = origin.replace('-web', '-api')
+      } else {
+        base = base || origin
+      }
+    }
+  }
+  if (!base) base = 'http://localhost:5000'
+  base = base.replace(/\/+$/, '')
   return `${base}/uploads/${s}`
 }
 

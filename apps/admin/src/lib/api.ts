@@ -54,7 +54,23 @@ export const mediaUrl = (p?: string): string => {
   const normalized = p.replace(/\\/g, '/').replace(/^\/+/, '')
   if (/^https?:\/\//i.test(normalized)) return normalized
   const withUploads = normalized.startsWith('uploads/') ? normalized : `uploads/${normalized}`
-  const base = (apiClient.defaults.baseURL as string) || (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000'
+  let base: string | undefined = (apiClient.defaults.baseURL as string) || (import.meta as any).env?.VITE_API_URL
+  if (!base || base.includes('localhost')) {
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin
+      if (/https?:\/\/.*-admin\./.test(origin)) {
+        base = origin.replace('-admin.', '-api.')
+      } else if (/https?:\/\/.*admin\./.test(origin)) {
+        base = origin.replace('admin.', 'api.')
+      } else if (/https?:\/\/.*-admin/.test(origin)) {
+        base = origin.replace('-admin', '-api')
+      } else {
+        base = base || origin
+      }
+    }
+  }
+  if (!base) base = 'http://localhost:5000'
+  base = base.replace(/\/+$/, '')
   return `${base}/${withUploads}`
 }
 
