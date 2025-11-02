@@ -4,9 +4,11 @@ import { useLocation } from 'react-router-dom'
 import { useAdminStore } from '../lib/store'
 import type { AdminState } from '../lib/store'
 import { DataTable, Modal, Button } from '@munlink/ui'
-import { Check, RotateCcw, Pause, ExternalLink, Hourglass } from 'lucide-react'
+import { Check, RotateCcw, Pause, ExternalLink, Hourglass, Users, UserCheck, UserMinus, Clock } from 'lucide-react'
 import TransferRequestCard from '../components/transfers/TransferRequestCard'
 import TransferRequestModal from '../components/transfers/TransferRequestModal'
+
+type ResidentFilter = 'all' | 'verified' | 'pending' | 'needs_revision' | 'suspended'
 
 export default function Residents() {
   const location = useLocation()
@@ -14,7 +16,7 @@ export default function Residents() {
   const adminMunicipalitySlug = useAdminStore((state: AdminState) => state.user?.admin_municipality_slug || state.user?.municipality_slug)
   const adminMunicipalityId = useAdminStore((state: AdminState) => state.user?.admin_municipality_id ?? state.user?.municipality_id ?? null)
   const [activeTab, setActiveTab] = useState<'residents'|'transfers'>('residents')
-  const [filter, setFilter] = useState<'all' | 'verified' | 'pending' | 'needs_revision' | 'suspended'>('all')
+  const [filter, setFilter] = useState<ResidentFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -184,6 +186,54 @@ export default function Residents() {
     suspended: rows.filter((r) => r.status === 'suspended').length,
   }), [rows])
 
+  const overviewCards = useMemo(() => [
+    {
+      key: 'all' as ResidentFilter,
+      label: 'Total Residents',
+      value: counts.all,
+      description: 'Profiles within your municipality',
+      icon: Users,
+      gradient: 'from-ocean-500/10 via-transparent to-forest-500/10',
+      iconClass: 'bg-ocean-500/15 text-ocean-700',
+    },
+    {
+      key: 'verified' as ResidentFilter,
+      label: 'Verified',
+      value: counts.verified,
+      description: 'Email & ID verified residents',
+      icon: UserCheck,
+      gradient: 'from-forest-500/12 via-transparent to-forest-500/6',
+      iconClass: 'bg-forest-500/15 text-forest-700',
+    },
+    {
+      key: 'pending' as ResidentFilter,
+      label: 'Pending Review',
+      value: counts.pending,
+      description: 'Awaiting your approval',
+      icon: Clock,
+      gradient: 'from-yellow-400/15 via-transparent to-yellow-400/5',
+      iconClass: 'bg-yellow-400/20 text-yellow-700',
+    },
+    {
+      key: 'needs_revision' as ResidentFilter,
+      label: 'Needs Updates',
+      value: counts.needs_revision,
+      description: 'Sent back for revision',
+      icon: Pause,
+      gradient: 'from-orange-400/15 via-transparent to-orange-400/5',
+      iconClass: 'bg-orange-400/20 text-orange-700',
+    },
+    {
+      key: 'suspended' as ResidentFilter,
+      label: 'Suspended',
+      value: counts.suspended,
+      description: 'Temporarily deactivated accounts',
+      icon: UserMinus,
+      gradient: 'from-red-500/12 via-transparent to-red-500/6',
+      iconClass: 'bg-red-500/15 text-red-700',
+    },
+  ], [counts])
+
   const openResident = (resident: any) => {
     setSelected(resident)
     setDetailOpen(true)
@@ -235,146 +285,126 @@ export default function Residents() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="">
-        <div className="">
-          <div className="flex items-start justify-between gap-3 mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-neutral-900">Residents</h1>
-              <p className="text-neutral-600">Manage verified residents, and municipality transfer requests</p>
+    <div className="min-h-screen bg-neutral-50">
+      <div className="relative">
+        <div className="absolute inset-x-0 top-0 h-[280px] bg-gradient-to-br from-ocean-100/60 via-white to-forest-100/50" aria-hidden="true" />
+        <div className="relative px-4 pb-16 sm:px-6 lg:px-10">
+          <div className="pt-8">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-ocean-700/80">Admin · Residents</p>
+                <h1 className="text-3xl font-bold text-neutral-900">Residents</h1>
+                <p className="max-w-2xl text-neutral-600">
+                  Manage verified residents and municipality transfer requests
+                  {adminMunicipalityName ? ` for ${adminMunicipalityName}` : ''}.
+                </p>
+              </div>
+            </div>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              {overviewCards.map((card) => {
+                const Icon = card.icon
+                const isActive = filter === card.key
+                return (
+                  <button
+                    key={card.key}
+                    type="button"
+                    onClick={() => setFilter(card.key)}
+                    className={`group relative overflow-hidden rounded-2xl border border-transparent bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ocean-500/70 ${isActive ? 'ring-2 ring-ocean-500/60 shadow-lg' : ''}`}
+                    aria-pressed={isActive}
+                  >
+                    <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${card.gradient}`} />
+                    <div className="relative">
+                      <div className={`mb-3 inline-flex items-center justify-center rounded-xl p-3 ${card.iconClass}`}>
+                        <Icon className="h-5 w-5" aria-hidden="true" />
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-sm font-medium text-neutral-500">{card.label}</span>
+                        <span className="text-lg font-semibold text-neutral-900">{card.value}</span>
+                      </div>
+                      <p className="mt-2 text-sm text-neutral-500">{card.description}</p>
+                    </div>
+                  </button>
+                )
+              })}
             </div>
           </div>
-          <div className="mb-6">
-            <div className="inline-flex rounded-xl border border-neutral-200 bg-white overflow-hidden">
+
+          <div className="mt-10 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="inline-flex items-center gap-1 rounded-full bg-white p-1 shadow-sm ring-1 ring-neutral-200">
               {[
                 { key: 'residents', label: 'Residents' },
                 { key: 'transfers', label: 'Transfer Requests' },
               ].map((t: any) => (
-                <button key={t.key}
+                <button
+                  key={t.key}
                   onClick={() => setActiveTab(t.key)}
-                  className={`px-4 py-2 text-sm font-medium ${activeTab===t.key? 'bg-ocean-600 text-white' : 'bg-white text-neutral-700 hover:bg-neutral-50'}`}
-                >{t.label}</button>
+                  className={`rounded-full px-4 py-2 text-sm font-medium transition-all ${activeTab === t.key ? 'bg-ocean-500 text-white shadow' : 'text-neutral-600 hover:bg-neutral-100/70'}`}
+                >
+                  {t.label}
+                </button>
               ))}
             </div>
-          </div>
-
-          {/* Residents Toolbar: Search + Filters */}
-          {activeTab==='residents' && (
-          <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-4 md:p-6 shadow-lg border border-white/50 mb-6">
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:gap-4">
-              <div className="w-full xl:max-w-sm">
-                <div className="relative">
-                  <input
-                    type="search"
-                    name="resident_search"
-                    id="resident-search"
-                    aria-label="Search residents by name, email, or ID number"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search by name, email, or ID number..."
-                    className="w-full pl-12 pr-4 py-3 bg-neutral-50 border border-neutral-200 rounded-xl focus:outline-none focus:border-ocean-500 focus:ring-2 focus:ring-ocean-500/20 transition-all"
-                  />
-                  <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                </div>
-              </div>
-              <div className="w-full xl:flex-1 xl:min-w-0">
-                <div className="flex flex-wrap items-center gap-2 overflow-x-auto xl:overflow-visible">
-                  {[
-                    { value: 'all', label: 'All Status', count: counts.all },
-                    { value: 'verified', label: 'Verified', count: counts.verified },
-                    { value: 'pending', label: 'Pending', count: counts.pending },
-                    { value: 'needs_revision', label: 'Needs Updates', count: counts.needs_revision },
-                    { value: 'suspended', label: 'Suspended', count: counts.suspended },
-                  ].map((status) => (
-                    <button
-                      key={status.value}
-                      onClick={() => setFilter(status.value as any)}
-                      aria-pressed={filter === status.value}
-                      className={`px-4 py-2 rounded-xl font-medium transition-all ${filter === status.value ? 'bg-ocean-gradient text-white shadow-lg' : 'bg-neutral-50 text-neutral-700 hover:bg-neutral-100'}`}
-                    >
-                      {status.label}
-                      <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${filter === status.value ? 'bg-white/20' : 'bg-neutral-200'}`}>{status.count}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {adminMunicipalityName && (
-                <div className="chip-locked w-full sm:w-auto xl:w-auto xl:ml-auto">
-                  <svg className="w-4 h-4 text-neutral-500" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm-2 6V6a2 2 0 114 0v2H8z"/></svg>
-                  <span className="truncate">{adminMunicipalityName}</span>
-                </div>
-              )}
-            </div>
-          </div>
-          )}
-
-          {/* Transfer Requests Tab */}
-          {activeTab==='transfers' && (
-          <div className="bg-white/70 backdrop-blur-xl rounded-2xl p-6 shadow-lg border border-white/50 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-xl font-semibold">Municipality Transfer Requests</h2>
-                <p className="text-neutral-600 text-sm">Approve (outgoing) or accept (incoming) transfers for {adminMunicipalityName}</p>
-              </div>
-            </div>
-            {/* Filters */}
-            <div className="mb-4 flex flex-col md:flex-row gap-3 md:items-center">
-              <div className="flex-1 min-w-0">
-                <input className="w-full border rounded px-3 py-2 text-sm" value={transferQuery} onChange={(e)=> { setTransferPage(1); setTransferQuery(e.target.value) }} placeholder="Search by resident, email, or transfer #" />
-              </div>
-              <div className="flex gap-2">
-                <select className="border rounded px-2 py-1 text-sm" value={transferStatus} onChange={(e)=> { setTransferPage(1); setTransferStatus(e.target.value as any) }}>
-                  <option value="all">All</option>
-                  <option value="pending">Pending</option>
-                  <option value="approved">Approved</option>
-                  <option value="rejected">Denied</option>
-                  <option value="accepted">Completed</option>
-                </select>
-                <select className="border rounded px-2 py-1 text-sm" value={transferSort} onChange={(e)=> setTransferSort(e.target.value as any)}>
-                  <option value="created_at">Newest</option>
-                  <option value="status">Status</option>
-                </select>
-                <select className="border rounded px-2 py-1 text-sm" value={transferOrder} onChange={(e)=> setTransferOrder(e.target.value as any)}>
-                  <option value="desc">Desc</option>
-                  <option value="asc">Asc</option>
-                </select>
-              </div>
-            </div>
-            {loadingTransfers ? (
-              <div className="text-sm text-neutral-600">Loading transfers…</div>
-            ) : transfers.length === 0 ? (
-              <div className="text-sm text-neutral-600">No transfer requests.</div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {transfers.map((t: any) => {
-                  const canApprove = Number(t.from_municipality_id) === Number(adminMunicipalityId)
-                  const canAccept = Number(t.to_municipality_id) === Number(adminMunicipalityId)
-                  return (
-                    <TransferRequestCard
-                      key={t.id}
-                      t={t}
-                      munMap={munMap}
-                      canApprove={canApprove}
-                      canDeny={canApprove}
-                      canAccept={canAccept}
-                      onApprove={() => updateTransferStatus(t.id, 'approved')}
-                      onDeny={() => updateTransferStatus(t.id, 'rejected')}
-                      onAccept={() => updateTransferStatus(t.id, 'accepted')}
-                      onView={() => { setSelected(t); setDetailOpen(true) }}
-                      onHistory={async () => { setSelected(t); setDetailOpen(true) }}
-                    />
-                  )
-                })}
+            {adminMunicipalityName && (
+              <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-neutral-600 shadow-sm ring-1 ring-neutral-200">
+                <svg className="h-4 w-4 text-neutral-500" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a4 4 0 00-4 4v2H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V6a4 4 0 00-4-4zm-2 6V6a2 2 0 114 0v2H8z" /></svg>
+                <span className="truncate">{adminMunicipalityName}</span>
               </div>
             )}
           </div>
-          )}
 
-          {/* Residents Table */}
-          {activeTab==='residents' && (
-          <DataTable
-            className="data-table bg-white/70 backdrop-blur-xl"
-            columns={[
+          {activeTab === 'residents' && (
+            <>
+              <div className="mt-6 rounded-2xl border border-white/60 bg-white/90 p-6 shadow-lg backdrop-blur">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
+                  <div className="w-full xl:max-w-md">
+                    <label htmlFor="resident-search" className="sr-only">Search residents</label>
+                    <div className="relative">
+                      <input
+                        type="search"
+                        name="resident_search"
+                        id="resident-search"
+                        aria-label="Search residents by name, email, or ID number"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Search by name, email, or ID number..."
+                        className="w-full rounded-xl border border-neutral-200 bg-neutral-50/80 pl-12 pr-4 py-3 text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-500/20 transition-all"
+                      />
+                      <svg className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    </div>
+                  </div>
+                  <div className="w-full xl:flex-1 xl:min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {[
+                        { value: 'all', label: 'All Status', count: counts.all },
+                        { value: 'verified', label: 'Verified', count: counts.verified },
+                        { value: 'pending', label: 'Pending', count: counts.pending },
+                        { value: 'needs_revision', label: 'Needs Updates', count: counts.needs_revision },
+                        { value: 'suspended', label: 'Suspended', count: counts.suspended },
+                      ].map((status) => (
+                        <button
+                          key={status.value}
+                          onClick={() => setFilter(status.value as ResidentFilter)}
+                          aria-pressed={filter === status.value}
+                          className={`group inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-all ${filter === status.value ? 'border-ocean-500 bg-ocean-50 text-ocean-700 shadow-sm' : 'border-transparent bg-neutral-100 text-neutral-600 hover:bg-neutral-200/80'}`}
+                        >
+                          <span>{status.label}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${filter === status.value ? 'bg-ocean-500/10 text-ocean-700' : 'bg-white text-neutral-500'}`}>{status.count}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {error && (
+                  <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {error}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6">
+                <DataTable
+                  className="data-table rounded-2xl border border-white/60 bg-white/90 backdrop-blur shadow-xl"
+                  columns={[
               { key: 'resident', header: 'Resident', className: 'md:col-span-3 xl:col-span-3', render: (r: any) => (
                 <div className="flex items-center h-10 gap-3 min-w-0">
                   {r.profile_picture ? (
@@ -481,6 +511,88 @@ export default function Residents() {
             emptyState={loading ? 'Loading…' : (error ? error : 'No residents found')}
             pagination={{ page, pageSize: perPage, total: filtered.length, onChange: (p: number) => setPage(p) }}
           />
+              </div>
+            </>
+          )}
+          {activeTab === 'transfers' && (
+            <div className="mt-6 rounded-2xl border border-white/60 bg-white/90 p-6 shadow-lg backdrop-blur">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-neutral-900">Municipality Transfer Requests</h2>
+                  <p className="text-sm text-neutral-600">Approve outgoing or accept incoming transfers for {adminMunicipalityName}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-end">
+                <div className="flex-1 min-w-0">
+                  <label htmlFor="transfer-search" className="sr-only">Search transfers</label>
+                  <input
+                    id="transfer-search"
+                    className="w-full rounded-xl border border-neutral-200 bg-neutral-50/80 px-4 py-3 text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-500/20 transition-all"
+                    value={transferQuery}
+                    onChange={(e) => { setTransferPage(1); setTransferQuery(e.target.value) }}
+                    placeholder="Search by resident, email, or transfer #"
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-500/20"
+                    value={transferStatus}
+                    onChange={(e) => { setTransferPage(1); setTransferStatus(e.target.value as any) }}
+                  >
+                    <option value="all">All</option>
+                    <option value="pending">Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Denied</option>
+                    <option value="accepted">Completed</option>
+                  </select>
+                  <select
+                    className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-500/20"
+                    value={transferSort}
+                    onChange={(e) => setTransferSort(e.target.value as any)}
+                  >
+                    <option value="created_at">Newest</option>
+                    <option value="status">Status</option>
+                  </select>
+                  <select
+                    className="rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-500/20"
+                    value={transferOrder}
+                    onChange={(e) => setTransferOrder(e.target.value as any)}
+                  >
+                    <option value="desc">Desc</option>
+                    <option value="asc">Asc</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-6">
+                {loadingTransfers ? (
+                  <div className="rounded-xl border border-dashed border-neutral-200 px-4 py-12 text-center text-sm text-neutral-600">Loading transfers…</div>
+                ) : transfers.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-neutral-200 px-4 py-12 text-center text-sm text-neutral-500">No transfer requests right now.</div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {transfers.map((t: any) => {
+                      const canApprove = Number(t.from_municipality_id) === Number(adminMunicipalityId)
+                      const canAccept = Number(t.to_municipality_id) === Number(adminMunicipalityId)
+                      return (
+                        <TransferRequestCard
+                          key={t.id}
+                          t={t}
+                          munMap={munMap}
+                          canApprove={canApprove}
+                          canDeny={canApprove}
+                          canAccept={canAccept}
+                          onApprove={() => updateTransferStatus(t.id, 'approved')}
+                          onDeny={() => updateTransferStatus(t.id, 'rejected')}
+                          onAccept={() => updateTransferStatus(t.id, 'accepted')}
+                          onView={() => { setSelected(t); setDetailOpen(true) }}
+                          onHistory={async () => { setSelected(t); setDetailOpen(true) }}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
       </div>
