@@ -29,7 +29,11 @@ export default function MunicipalitySelect() {
   }, [setMunicipality])
 
   useEffect(() => {
-    if (selected) localStorage.setItem('munlink:selectedMunicipality', JSON.stringify(selected))
+    if (selected) {
+      localStorage.setItem('munlink:selectedMunicipality', JSON.stringify(selected))
+    } else {
+      localStorage.removeItem('munlink:selectedMunicipality')
+    }
   }, [selected])
 
   const filtered = useMemo(() =>
@@ -41,7 +45,7 @@ export default function MunicipalitySelect() {
     <div className="relative">
       <details ref={detailsRef} className="group">
         <summary className="list-none cursor-pointer select-none hover:text-ocean-700 font-serif">
-          {selected ? selected.name : 'Municipality'} ▾
+          {selected ? selected.name : 'All Municipalities'} ▾
         </summary>
         <div className="absolute right-0 mt-3 w-64 bg-white/90 backdrop-blur-xl rounded-xl shadow-2xl border border-white/50 p-2 z-50">
           <input
@@ -52,11 +56,25 @@ export default function MunicipalitySelect() {
             className="input-field mb-2"
           />
           <ul className="max-h-64 overflow-auto">
+            <li>
+              <button
+                type="button"
+                onClick={() => {
+                  setMunicipality(undefined)
+                  setQuery('')
+                  try { if (detailsRef.current) detailsRef.current.open = false } catch {}
+                }}
+                className={`w-full text-left px-3 py-2 rounded ${!selected ? 'bg-ocean-50 text-ocean-700' : 'hover:bg-ocean-50'}`}
+              >
+                All Municipalities (Province-wide)
+              </button>
+            </li>
             {filtered.map(m => (
               <li key={m.id}>
                 <button
-                  onClick={() => { setMunicipality(m); try { if (detailsRef.current) detailsRef.current.open = false } catch {} }}
-                  className="w-full text-left px-3 py-2 rounded hover:bg-ocean-50"
+                  type="button"
+                  onClick={() => { setMunicipality(m); setQuery(''); try { if (detailsRef.current) detailsRef.current.open = false } catch {} }}
+                  className={`w-full text-left px-3 py-2 rounded ${selected?.id === m.id ? 'bg-ocean-50 text-ocean-700' : 'hover:bg-ocean-50'}`}
                 >
                   {m.name}
                 </button>

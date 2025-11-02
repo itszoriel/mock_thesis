@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { X } from 'lucide-react'
+import { X, Globe } from 'lucide-react'
 import GatedAction from '@/components/GatedAction'
 import { marketplaceApi, mediaUrl, showToast, handleApiError } from '@/lib/api'
 import { useAppStore } from '@/lib/store'
@@ -137,6 +137,15 @@ export default function MarketplacePage() {
           ))}
         </select>
       </div>
+
+      {selectedMunicipality && (
+        <div className="mb-6 inline-flex items-start gap-2 rounded-xl bg-neutral-100 px-4 py-3 text-xs sm:text-sm text-neutral-600">
+          <Globe className="mt-0.5 h-4 w-4 flex-shrink-0 text-neutral-500" aria-hidden="true" />
+          <span>
+            Showing listings from <strong>{selectedMunicipality.name}</strong>. Use the municipality selector above and pick “All Municipalities” to browse the entire province.
+          </span>
+        </div>
+      )}
 
       {blockedMessage && (
         <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 text-amber-800 px-4 py-3 text-sm">

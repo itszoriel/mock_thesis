@@ -5,6 +5,7 @@ import { useAppStore } from '@/lib/store'
 import { Link } from 'react-router-dom'
 import AnnouncementCard from '@/components/AnnouncementCard'
 import MarketplaceCard from '@/components/MarketplaceCard'
+import { Globe } from 'lucide-react'
 
 export default function HomePage() {
   const selectedMunicipality = useAppStore((s) => s.selectedMunicipality)
@@ -81,6 +82,16 @@ export default function HomePage() {
 
       {/* Two-column layout: Latest Announcements (left) and Featured Marketplace (right) */}
       <section className="container-responsive py-10 md:py-12 mt-10 md:mt-12">
+        {selectedMunicipality && (
+          <div className="mx-auto mb-6 max-w-6xl">
+            <div className="inline-flex items-start gap-2 rounded-xl bg-neutral-100 px-4 py-3 text-xs sm:text-sm text-neutral-600">
+              <Globe className="mt-0.5 h-4 w-4 flex-shrink-0 text-neutral-500" aria-hidden="true" />
+              <span>
+                You are viewing updates for <strong>{selectedMunicipality.name}</strong>. Choose “All Municipalities” in the header selector to see announcements and marketplace posts from the entire province.
+              </span>
+            </div>
+          </div>
+        )}
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
           {/* Left: Latest Announcements */}
           <div>
