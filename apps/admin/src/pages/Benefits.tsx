@@ -20,6 +20,45 @@ export default function Benefits() {
   const [actionLoading, setActionLoading] = useState<number | null>(null)
   const adminMunicipalityId = useAdminStore((state: AdminState) => state.user?.admin_municipality_id ?? state.user?.municipality_id ?? null)
 
+  const normalizeProgram = (program: any) => {
+    if (!program) return null
+    const rawStatus = program.status ?? (program.is_active === false ? 'completed' : 'active')
+    const statusLower = typeof rawStatus === 'string' ? rawStatus.toLowerCase() : rawStatus
+    const status = statusLower === 'archived' ? 'completed' : statusLower
+    const requiredList = Array.isArray(program.required_documents)
+      ? program.required_documents
+      : (Array.isArray(program.requirements) ? program.requirements : [])
+    const beneficiaries = Number(program.current_beneficiaries ?? program.beneficiaries ?? 0)
+    return {
+      id: program.id,
+      code: program.code,
+      title: program.title || program.name || 'Program',
+      name: program.name ?? program.title ?? 'Program',
+      description: program.description || program.summary || '—',
+      beneficiaries: Number.isFinite(beneficiaries) ? beneficiaries : 0,
+      duration_days: program.duration_days ?? null,
+      completed_at: program.completed_at || null,
+      is_active: status === 'active',
+      status,
+      icon: '📋',
+      color: 'ocean',
+      required_documents: requiredList,
+      eligibility_criteria: program.eligibility_criteria,
+      program_type: program.program_type,
+      raw: program,
+    }
+  }
+
+  useEffect(() => {
+    const active = programs.filter((item: any) => (item?.status ?? (item?.is_active ? 'active' : 'completed')) === 'active').length
+    setActiveCount(active)
+    const total = programs.reduce((sum: number, item: any) => {
+      const value = Number(item?.beneficiaries ?? 0)
+      return sum + (Number.isFinite(value) ? value : 0)
+    }, 0)
+    setBeneficiariesTotal(Number.isFinite(total) ? total : null)
+  }, [programs])
+
   useEffect(() => {
     let mounted = true
     ;(async () => {
@@ -35,24 +74,9 @@ export default function Benefits() {
           const res = await benefitsApi.getPrograms(adminMunicipalityId ?? undefined)
           list = ((res as any)?.programs as any[]) || []
         }
-        const mapped = list.map((p) => ({
-          id: p.id,
-          title: p.title || p.name || 'Program',
-          description: p.description || '—',
-          beneficiaries: p.current_beneficiaries || p.beneficiaries || 0,
-          duration_days: p.duration_days ?? null,
-          completed_at: p.completed_at || null,
-          is_active: p.is_active !== false,
-          status: (p.is_active === false ? 'archived' : 'active'),
-          icon: '📋',
-          color: 'ocean',
-          required_documents: p.required_documents || p.requirements || [],
-        }))
+        const mapped = list.map((p) => normalizeProgram(p)).filter(Boolean)
         if (mounted) {
-          setPrograms(mapped)
-          setActiveCount(mapped.filter((x:any)=>x.is_active).length)
-          const total = mapped.reduce((sum: number, it: any) => sum + (Number(it.beneficiaries) || 0), 0)
-          setBeneficiariesTotal(isNaN(total) ? null : total)
+          setPrograms(mapped as any[])
         }
       } catch (e: any) {
         // Not fatal if benefits aren't available; show empty state and error banner
@@ -107,26 +131,10 @@ export default function Benefits() {
       const res = await benefitsAdminApi.createProgram(payload)
       const created = (res as any)?.program
       if (created) {
-        setPrograms((prev) => {
-          const next = [{
-            id: created.id,
-            title: created.name,
-            description: created.description,
-            beneficiaries: created.current_beneficiaries || 0,
-            duration_days: created.duration_days ?? null,
-            completed_at: created.completed_at || null,
-            is_active: created.is_active !== false,
-            status: created.is_active ? 'active' : 'archived',
-            icon: '📋',
-            color: 'ocean',
-            required_documents: created.required_documents || [],
-          }, ...prev]
-          const active = next.filter((p: any) => p.is_active).length
-          const beneficiariesSum = next.reduce((sum: number, item: any) => sum + (Number(item.beneficiaries) || 0), 0)
-          setActiveCount(active)
-          setBeneficiariesTotal(isNaN(beneficiariesSum) ? null : beneficiariesSum)
-          return next
-        })
+        const normalized = normalizeProgram(created)
+        if (normalized) {
+          setPrograms((prev) => [normalized, ...prev])
+        }
       }
       setCreateOpen(false)
     } catch (e: any) {
@@ -142,14 +150,7 @@ export default function Benefits() {
     try {
       setActionLoading(programId)
       await benefitsAdminApi.deleteProgram(programId)
-      setPrograms((prev) => {
-        const next = prev.filter((p: any) => p.id !== programId)
-        const active = next.filter((p: any) => p.is_active).length
-        const beneficiariesSum = next.reduce((sum: number, item: any) => sum + (Number(item.beneficiaries) || 0), 0)
-        setActiveCount(active)
-        setBeneficiariesTotal(isNaN(beneficiariesSum) ? null : beneficiariesSum)
-        return next
-      })
+      setPrograms((prev) => prev.filter((p: any) => p.id !== programId))
       showToast('Program deleted', 'success')
     } catch (e: any) {
       setError(handleApiError(e))
@@ -188,40 +189,6 @@ export default function Benefits() {
             </div>
             <p className="text-3xl font-bold text-neutral-900 mb-1">{stat.value}</p>
             <p className="text-sm text-neutral-600">{stat.label}</p>
-          </div>
-        ))}
-        {!loading && activeTab === 'archived' && programs.filter((p:any)=>!p.is_active).map((program, i) => (
-          <div key={i} className="group bg-white/70 backdrop-blur-xl rounded-3xl shadow-lg border border-white/50">
-            <div className={`relative h-32 bg-gradient-to-br from-${program.color}-400 to-${program.color}-600 flex items-center justify-center`}>
-              <div className="absolute inset-0 bg-white/20" />
-              <span className="relative">
-                {/* @ts-ignore dynamic gradient color class */}
-                <IconFromCode code={program.icon as string} className="w-12 h-12 text-white" />
-              </span>
-            </div>
-            <div className="p-6">
-              <div className="flex items-start justify-between mb-3">
-                <h3 className="font-bold text-lg text-neutral-900">{program.title}</h3>
-                <span className="px-2 py-1 bg-neutral-100 text-neutral-700 text-xs font-medium rounded-full">Program Completed</span>
-              </div>
-              <p className="text-sm text-neutral-600 mb-4 line-clamp-2">{program.description}</p>
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-neutral-50 rounded-xl p-3">
-                  <p className="text-xs text-neutral-600 mb-1">Beneficiaries</p>
-                  <p className="text-lg font-bold text-neutral-900">{program.beneficiaries}</p>
-                </div>
-                {Number(program.duration_days) > 0 && (
-                  <div className="bg-neutral-50 rounded-xl p-3">
-                    <p className="text-xs text-neutral-600 mb-1">Duration (days)</p>
-                    <p className="text-lg font-bold text-neutral-900">{program.duration_days}</p>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <button onClick={async () => { try { const res = await benefitsApi.getProgramById(program.id); setViewProgram((res as any)?.data || res) } catch (e: any) { setError(handleApiError(e)) } }} className="flex-1 py-2 bg-ocean-100 hover:bg-ocean-200 text-ocean-700 rounded-xl text-sm font-medium transition-colors">View Details</button>
-                <button onClick={() => handleDeleteProgram(program.id)} className="flex-1 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-sm font-medium transition-colors" disabled={actionLoading===program.id}>Delete</button>
-              </div>
-            </div>
           </div>
         ))}
       </div>
@@ -280,7 +247,74 @@ export default function Benefits() {
               <div className="relative flex gap-2">
                 <button onClick={async () => { try { const res = await benefitsApi.getProgramById(program.id); setViewProgram((res as any)?.data || res) } catch (e: any) { setError(handleApiError(e)) } }} className="flex-1 py-2 bg-ocean-100 hover:bg-ocean-200 text-ocean-700 rounded-xl text-sm font-medium transition-colors">View Details</button>
                 <button onClick={() => { setViewProgram({ ...program, _edit: true }) }} className="flex-1 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-sm font-medium transition-colors">Edit</button>
-                <button onClick={async ()=>{ try { setActionLoading(program.id); await benefitsAdminApi.completeProgram(program.id); setPrograms((prev:any[])=> prev.map((p:any)=> p.id===program.id ? { ...p, is_active:false, status:'archived', completed_at: new Date().toISOString() } : p)); setActiveCount((c)=> Math.max(0, c-1)); showToast('Program marked as completed','success') } catch(e:any){ setError(handleApiError(e)) } finally { setActionLoading(null) } }} className="flex-1 py-2 bg-forest-100 hover:bg-forest-200 text-forest-700 rounded-xl text-sm font-medium transition-colors" disabled={actionLoading===program.id}>Done</button>
+                <button onClick={async ()=>{
+                  try {
+                    setActionLoading(program.id)
+                    const res = await benefitsAdminApi.completeProgram(program.id)
+                    const updatedProgram = normalizeProgram((res as any)?.program || { ...program, is_active: false, status: 'completed', completed_at: new Date().toISOString() })
+                    if (updatedProgram) {
+                      setPrograms((prev:any[])=> prev.map((p:any)=> p.id===program.id ? { ...p, ...updatedProgram } : p))
+                    }
+                    showToast('Program marked as completed','success')
+                  } catch(e:any){
+                    setError(handleApiError(e))
+                  } finally { setActionLoading(null) }
+                }} className="flex-1 py-2 bg-forest-100 hover:bg-forest-200 text-forest-700 rounded-xl text-sm font-medium transition-colors" disabled={actionLoading===program.id}>Done</button>
+                <button onClick={() => handleDeleteProgram(program.id)} className="flex-1 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-sm font-medium transition-colors" disabled={actionLoading===program.id}>Delete</button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {!loading && activeTab === 'archived' && programs.filter((p:any)=>!p.is_active).map((program, i) => (
+          <div key={i} className="group bg-white/70 backdrop-blur-xl rounded-3xl shadow-lg border border-white/50">
+            <div className={`relative h-32 bg-gradient-to-br from-${program.color}-400 to-${program.color}-600 flex items-center justify-center`}>
+              <div className="absolute inset-0 bg-white/20" />
+              <span className="relative">
+                {/* @ts-ignore dynamic gradient color class */}
+                <IconFromCode code={program.icon as string} className="w-12 h-12 text-white" />
+              </span>
+            </div>
+            <div className="p-6">
+              <div className="flex items-start justify-between mb-3">
+                <h3 className="font-bold text-lg text-neutral-900">{program.title}</h3>
+                <span className="px-2 py-1 bg-neutral-100 text-neutral-700 text-xs font-medium rounded-full">Program Completed</span>
+              </div>
+              <p className="text-sm text-neutral-600 mb-4 line-clamp-2">{program.description}</p>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="bg-neutral-50 rounded-xl p-3">
+                  <p className="text-xs text-neutral-600 mb-1">Beneficiaries</p>
+                  <p className="text-lg font-bold text-neutral-900">{program.beneficiaries}</p>
+                </div>
+                {Number(program.duration_days) > 0 && (
+                  <div className="bg-neutral-50 rounded-xl p-3">
+                    <p className="text-xs text-neutral-600 mb-1">Duration (days)</p>
+                    <p className="text-lg font-bold text-neutral-900">{program.duration_days}</p>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      setActionLoading(program.id)
+                      const res = await benefitsAdminApi.getProgram(program.id)
+                      const detail = (res as any)?.program || (res as any)?.data?.program || res
+                      if (detail) {
+                        const normalized = normalizeProgram(detail) || program
+                        setViewProgram({ ...normalized, raw: detail })
+                      } else {
+                        setViewProgram(program)
+                      }
+                    } catch (e: any) {
+                      setError(handleApiError(e))
+                    } finally {
+                      setActionLoading(null)
+                    }
+                  }}
+                  className="flex-1 py-2 bg-ocean-100 hover:bg-ocean-200 text-ocean-700 rounded-xl text-sm font-medium transition-colors"
+                >
+                  View Details
+                </button>
                 <button onClick={() => handleDeleteProgram(program.id)} className="flex-1 py-2 bg-rose-100 hover:bg-rose-200 text-rose-700 rounded-xl text-sm font-medium transition-colors" disabled={actionLoading===program.id}>Delete</button>
               </div>
             </div>
@@ -331,7 +365,35 @@ export default function Benefits() {
                 required_documents: viewProgram.required_documents || [],
               }}
               onCancel={()=> setViewProgram(null)}
-              onSubmit={async (data)=>{ try { setActionLoading(viewProgram.id); await benefitsAdminApi.updateProgram(viewProgram.id, data); setPrograms((prev)=> prev.map(p=> p.id===viewProgram.id ? { ...p, title: data.name || p.title, description: (data.description ?? p.description), duration_days: (data.duration_days ?? p.duration_days), required_documents: data.required_documents ?? p.required_documents } : p)); setViewProgram(null) } catch(e:any){ setError(handleApiError(e)) } finally { setActionLoading(null) } }} submitting={actionLoading===viewProgram.id} />
+                onSubmit={async (data)=>{
+                  try {
+                    setActionLoading(viewProgram.id)
+                    const res = await benefitsAdminApi.updateProgram(viewProgram.id, data)
+                    const updated = (res as any)?.program || (res as any)?.data?.program
+                    if (updated) {
+                      const normalized = normalizeProgram(updated)
+                      if (normalized) {
+                        setPrograms((prev)=> prev.map((p:any)=> p.id === viewProgram.id ? { ...p, ...normalized } : p))
+                      }
+                    } else {
+                      setPrograms((prev)=> prev.map((p:any)=> p.id===viewProgram.id ? {
+                        ...p,
+                        title: data.name || p.title,
+                        description: data.description ?? p.description,
+                        duration_days: data.duration_days ?? p.duration_days,
+                        required_documents: data.required_documents ?? p.required_documents,
+                        program_type: data.program_type ?? p.program_type,
+                      } : p))
+                    }
+                    setViewProgram(null)
+                  } catch(e:any){
+                    setError(handleApiError(e))
+                  } finally {
+                    setActionLoading(null)
+                  }
+                }}
+                submitting={actionLoading===viewProgram.id}
+              />
           ) : (
             <div className="space-y-2">
               <p className="text-sm text-neutral-700"><span className="font-medium">Name:</span> {viewProgram.name || viewProgram.title}</p>

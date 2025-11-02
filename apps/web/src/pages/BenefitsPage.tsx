@@ -1,10 +1,10 @@
 import { StatusBadge, Card, EmptyState } from '@munlink/ui'
 import { useEffect, useState, useMemo } from 'react'
 import { ArrowRight, ArrowLeft } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import GatedAction from '@/components/GatedAction'
 import { useAppStore } from '@/lib/store'
-import { benefitsApi } from '@/lib/api'
+import { benefitsApi, handleApiError } from '@/lib/api'
 import Modal from '@/components/ui/Modal'
 import Stepper from '@/components/ui/Stepper'
 
@@ -23,6 +23,8 @@ type Program = {
 export default function BenefitsPage() {
   const selectedMunicipality = useAppStore((s) => s.selectedMunicipality)
   const user = useAppStore((s) => s.user)
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated)
+  const navigate = useNavigate()
   const [programs, setPrograms] = useState<Program[]>([])
   const [loading, setLoading] = useState(true)
   const [typeFilter, setTypeFilter] = useState('all')
@@ -38,11 +40,44 @@ export default function BenefitsPage() {
   const isMismatch = !!(user as any)?.municipality_id && !!selectedMunicipality?.id && (user as any).municipality_id !== selectedMunicipality.id
   const [benefitRequirements, setBenefitRequirements] = useState<Array<{ label: string; file?: File | null }>>([])
   const [applicationNotes, setApplicationNotes] = useState('')
+  const [pageError, setPageError] = useState<string | null>(null)
+  const [fetchingProgramId, setFetchingProgramId] = useState<number | null>(null)
+
+  const openApplicationModal = async (program: Program) => {
+    const numericId = Number(program?.id)
+    setPageError(null)
+    if (!numericId || Number.isNaN(numericId)) {
+      setPageError('Selected program is no longer available. Please refresh and try again.')
+      return
+    }
+    setFetchingProgramId(numericId)
+    try {
+      const res = await benefitsApi.getProgram(numericId)
+      const detail = res?.data || (res as any)?.program || res
+      const merged = detail && typeof detail === 'object' ? { ...program, ...detail } : program
+      setSelected(merged)
+      setOpen(true)
+      setStep(1)
+      setResult(null)
+      setApplicationNotes('')
+    } catch (err: any) {
+      setPageError(handleApiError(err, 'Unable to load program details'))
+      // Fallback to existing list data so the resident can still proceed
+      setSelected(program)
+      setOpen(true)
+      setStep(1)
+      setResult(null)
+      setApplicationNotes('')
+    } finally {
+      setFetchingProgramId(null)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       setLoading(true)
+      setPageError(null)
       try {
         if (tab === 'applications') {
           const isAuthenticated = !!useAppStore.getState().isAuthenticated
@@ -55,6 +90,15 @@ export default function BenefitsPage() {
           if (typeFilter !== 'all') params.type = typeFilter
           const res = await benefitsApi.getPrograms(params)
           if (!cancelled) setPrograms(res.data?.programs || [])
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setPageError(handleApiError(err, 'Failed to load benefits data'))
+          if (tab === 'applications') {
+            setApplications([])
+          } else {
+            setPrograms([])
+          }
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -129,6 +173,9 @@ export default function BenefitsPage() {
           <div className="flex items-center gap-2 md:ml-auto">
             <button className={`btn ${tab==='programs'?'btn-primary':'btn-secondary'}`} onClick={() => setTab('programs')}>Programs</button>
             <button className={`btn ${tab==='applications'?'btn-primary':'btn-secondary'}`} onClick={() => setTab('applications')}>My Applications</button>
+            {isAuthenticated && (
+              <button className="btn btn-secondary" onClick={() => navigate('/benefits/history')}>Program History</button>
+            )}
           </div>
         </div>
       </Card>
@@ -136,6 +183,12 @@ export default function BenefitsPage() {
       {isMismatch && (
         <div className="mb-4 p-3 rounded-lg border border-yellow-300 bg-yellow-50 text-sm text-yellow-900">
           You are viewing {selectedMunicipality?.name}. Applications are limited to your registered municipality.
+        </div>
+      )}
+
+      {pageError && (
+        <div className="mb-4 p-3 rounded-lg border border-rose-200 bg-rose-50 text-sm text-rose-700">
+          {pageError}
         </div>
       )}
 
@@ -207,16 +260,21 @@ export default function BenefitsPage() {
                   <GatedAction
                     required="fullyVerified"
                     onAllowed={() => {
-                      if (isMismatch) { alert('Applications are limited to your registered municipality'); return }
-                      setSelected(p)
-                      setOpen(true)
-                      setStep(1)
-                      setResult(null)
-                      setApplicationNotes('')
+                      if (isMismatch) {
+                        alert('Applications are limited to your registered municipality');
+                        return
+                      }
+                      void openApplicationModal(p)
                     }}
                     tooltip="Login required to use this feature"
                   >
-                    <button className="btn btn-primary w-full" disabled={isMismatch} title={isMismatch ? 'Applications are limited to your municipality' : undefined}>Apply Now</button>
+                    <button
+                      className="btn btn-primary w-full"
+                      disabled={isMismatch || fetchingProgramId === Number(p.id)}
+                      title={isMismatch ? 'Applications are limited to your municipality' : undefined}
+                    >
+                      {fetchingProgramId === Number(p.id) ? 'Loading...' : 'Apply Now'}
+                    </button>
                   </GatedAction>
                 </div>
               </Card>

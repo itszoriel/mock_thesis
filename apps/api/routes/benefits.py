@@ -2,6 +2,7 @@
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required
 from datetime import datetime, timedelta, timezone
+from sqlalchemy.orm import joinedload
 import json
 
 try:
@@ -9,6 +10,7 @@ try:
     from apps.api.models.benefit import BenefitProgram, BenefitApplication
     from apps.api.models.user import User
     from apps.api.models.municipality import Municipality
+    from sqlalchemy.orm import joinedload
     from apps.api.utils import (
         validate_required_fields,
         ValidationError,
@@ -21,6 +23,7 @@ except ImportError:
     from models.benefit import BenefitProgram, BenefitApplication
     from models.user import User
     from models.municipality import Municipality
+    from sqlalchemy.orm import joinedload
     from utils import (
         validate_required_fields,
         ValidationError,
@@ -229,6 +232,60 @@ def my_applications():
         return jsonify({'applications': [a.to_dict() for a in apps], 'count': len(apps)}), 200
     except Exception as e:
         return jsonify({'error': 'Failed to get applications', 'details': str(e)}), 500
+
+
+@benefits_bp.route('/my-history', methods=['GET'])
+@jwt_required()
+def my_completed_programs():
+    """Return programs that the resident has completed or been approved for."""
+    try:
+        user_id = jwt_identity_as_int()
+        if user_id is None:
+            return jsonify({'error': 'Invalid session', 'details': 'Please log in again.'}), 401
+
+        default_statuses = ['approved', 'completed']
+        requested = request.args.get('status')
+        if requested:
+            statuses = [s.strip().lower() for s in requested.split(',') if s.strip()]
+            statuses = statuses or default_statuses
+        else:
+            statuses = default_statuses
+
+        query = (
+            BenefitApplication.query.options(joinedload(BenefitApplication.program))
+            .filter(BenefitApplication.user_id == user_id)
+        )
+        if statuses:
+            query = query.filter(BenefitApplication.status.in_(statuses))
+
+        query = query.order_by(BenefitApplication.created_at.desc())
+
+        applications = query.all()
+        applications.sort(
+            key=lambda app: (
+                app.completed_at or app.approved_at or app.created_at or datetime.min
+            ),
+            reverse=True,
+        )
+        history = []
+        for app in applications:
+            data = app.to_dict()
+            program_dict = data.get('program') or (app.program.to_dict() if app.program else None)
+
+            completion_source = app.completed_at or app.approved_at
+            if not completion_source and app.program and app.program.completed_at:
+                completion_source = app.program.completed_at
+
+            data['completion_date'] = completion_source.isoformat() if completion_source else None
+            if program_dict:
+                # Ensure status field is present
+                program_dict['status'] = program_dict.get('status') or ('active' if app.program and app.program.is_active else 'completed')
+                data['program'] = program_dict
+            history.append(data)
+
+        return jsonify({'history': history, 'count': len(history)}), 200
+    except Exception as e:
+        return jsonify({'error': 'Failed to get completed programs', 'details': str(e)}), 500
 
 
 @benefits_bp.route('/applications/<int:application_id>/upload', methods=['POST'])

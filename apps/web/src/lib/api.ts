@@ -120,6 +120,7 @@ export const benefitsApi = {
     return api.post('/api/benefits/applications', data)
   },
   getMyApplications: () => api.get('/api/benefits/my-applications'),
+  getMyHistory: (params?: any) => api.get('/api/benefits/my-history', { params }),
   uploadDocs: (id: number, form: FormData) => api.post(`/api/benefits/applications/${id}/upload`, form, { headers: { 'Content-Type': 'multipart/form-data' } }),
 }
 

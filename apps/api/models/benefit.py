@@ -81,6 +81,7 @@ class BenefitProgram(db.Model):
             'duration_days': self.duration_days,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None,
+            'status': 'active' if self.is_active else 'completed',
         }
 
 
@@ -123,6 +124,7 @@ class BenefitApplication(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     reviewed_at = db.Column(db.DateTime, nullable=True)
     approved_at = db.Column(db.DateTime, nullable=True)
+    completed_at = db.Column(db.DateTime, nullable=True)
     
     # Relationships
     user = db.relationship('User', foreign_keys=[user_id], backref='benefit_applications')
@@ -159,6 +161,7 @@ class BenefitApplication(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'reviewed_at': self.reviewed_at.isoformat() if self.reviewed_at else None,
             'approved_at': self.approved_at.isoformat() if self.approved_at else None,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None,
         }
         
         if include_user and self.user:

@@ -1216,6 +1216,42 @@ def admin_list_benefit_programs():
     except Exception as e:
         return jsonify({'error': 'Failed to get programs', 'details': str(e)}), 500
 
+
+@admin_bp.route('/benefits/programs/<int:program_id>', methods=['GET'])
+@jwt_required()
+def admin_get_benefit_program(program_id: int):
+    """Return single benefit program (including inactive) scoped for the admin municipality."""
+    try:
+        municipality_id = require_admin_municipality()
+        if isinstance(municipality_id, tuple):
+            return municipality_id
+
+        program = BenefitProgram.query.get(program_id)
+        if not program:
+            return jsonify({'error': 'Program not found'}), 404
+
+        if program.municipality_id and program.municipality_id != municipality_id:
+            return jsonify({'error': 'Program not in your municipality'}), 403
+
+        data = program.to_dict()
+
+        # Attach a quick applicant breakdown for context
+        try:
+            total_apps = BenefitApplication.query.filter_by(program_id=program_id).count()
+            approved = BenefitApplication.query.filter_by(program_id=program_id, status='approved').count()
+            completed = BenefitApplication.query.filter_by(program_id=program_id, status='completed').count()
+            data['application_stats'] = {
+                'total': int(total_apps),
+                'approved': int(approved),
+                'completed': int(completed),
+            }
+        except Exception:
+            pass
+
+        return jsonify({'program': data}), 200
+    except Exception as e:
+        return jsonify({'error': 'Failed to get program', 'details': str(e)}), 500
+
 @admin_bp.route('/benefits/applications', methods=['GET'])
 @jwt_required()
 def admin_list_benefit_applications():
@@ -1418,7 +1454,7 @@ def admin_update_benefit_application_status(application_id: int):
         notes = data.get('admin_notes')
         rejection_reason = data.get('rejection_reason')
 
-        if new_status not in ['pending', 'under_review', 'approved', 'rejected', 'cancelled']:
+        if new_status not in ['pending', 'under_review', 'approved', 'rejected', 'cancelled', 'completed']:
             return jsonify({'error': 'Invalid status'}), 400
 
         app = BenefitApplication.query.get(application_id)
@@ -1438,17 +1474,22 @@ def admin_update_benefit_application_status(application_id: int):
             app.admin_notes = notes
         if new_status == 'rejected' and rejection_reason:
             app.rejection_reason = rejection_reason
-        now = datetime.utcnow()
-        app.updated_at = now
+        now = datetime.now(timezone.utc)
+        naive_now = now.replace(tzinfo=None)
+        app.updated_at = naive_now
         if new_status == 'under_review':
-            app.reviewed_at = now
+            app.reviewed_at = naive_now
         if new_status == 'approved':
-            app.approved_at = now
+            app.approved_at = naive_now
+        if new_status == 'completed':
+            app.completed_at = naive_now
+            if not app.approved_at:
+                app.approved_at = naive_now
         # Adjust program beneficiaries count based on status transition
         try:
-            if prev != 'approved' and new_status == 'approved':
+            if prev not in ['approved', 'completed'] and new_status in ['approved', 'completed']:
                 program.current_beneficiaries = (program.current_beneficiaries or 0) + 1
-            if prev == 'approved' and new_status != 'approved':
+            if prev in ['approved', 'completed'] and new_status not in ['approved', 'completed']:
                 current = (program.current_beneficiaries or 0)
                 program.current_beneficiaries = max(0, current - 1)
         except Exception:
@@ -1626,6 +1667,26 @@ def admin_complete_benefit_program(program_id: int):
         program.is_active = False
         program.is_accepting_applications = False
         program.completed_at = now.replace(tzinfo=None)
+
+        try:
+            approved_apps = (
+                BenefitApplication.query
+                .filter(
+                    BenefitApplication.program_id == program_id,
+                    BenefitApplication.status.in_(['approved', 'completed'])
+                )
+                .all()
+            )
+            for app in approved_apps:
+                app.status = 'completed'
+                naive_now = now.replace(tzinfo=None)
+                app.completed_at = naive_now
+                if not app.approved_at:
+                    app.approved_at = naive_now
+                app.updated_at = naive_now
+        except Exception:
+            pass
+
         db.session.commit()
         return jsonify({'message': 'Program marked as completed', 'program': program.to_dict()}), 200
     except Exception as e:
