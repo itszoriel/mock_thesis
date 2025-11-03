@@ -18,6 +18,8 @@ services:
         value: "False"
       - key: SECRET_KEY
         generateValue: true
+      - key: ADMIN_SECRET_KEY
+        value: Paulpogi2211
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
@@ -85,6 +87,9 @@ services:
       npm ci
       VITE_API_URL=https://munlink-api.onrender.com npm run build
     staticPublishPath: dist
+    envVars:
+      - key: ADMIN_SECRET_KEY
+        value: Paulpogi2211
     routes:
       - type: rewrite
         source: /.well-known/*
