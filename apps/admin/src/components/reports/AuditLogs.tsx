@@ -94,7 +94,7 @@ export default function AuditLogs() {
           <label className="block text-xs font-medium mb-1">To</label>
           <input type="datetime-local" className="border rounded px-3 py-2 text-sm" value={filters.to||''} onChange={(e)=> setFilters(f=>({...f, to: e.target.value||undefined}))} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 sm:ml-auto sm:self-end sm:justify-end">
           <button className="px-3 py-2 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-sm" onClick={()=> { setPage(1); load() }}>Apply</button>
           <button className="px-3 py-2 rounded-lg bg-ocean-600 hover:bg-ocean-700 text-white text-sm disabled:opacity-60" disabled={working==='pdf'} onClick={()=> exportIt('pdf')}>{working==='pdf'?'Exporting…':'Export PDF'}</button>
           <button className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-60" disabled={working==='xlsx'} onClick={()=> exportIt('xlsx')}>{working==='xlsx'?'Exporting…':'Export Excel'}</button>
