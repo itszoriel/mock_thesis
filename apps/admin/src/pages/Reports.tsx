@@ -1,8 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ArrowDownRight, ArrowUpRight, ClipboardList, FileText, Megaphone, Store, Users } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { handleApiError, dashboardApi, userApi, marketplaceApi, announcementApi, documentsAdminApi } from '../lib/api'
 import ExportArchive from '../components/reports/ExportArchive.tsx'
 import AuditLogs from '../components/reports/AuditLogs.tsx'
 import { AdminPageShell, AdminPageHeader } from '../components/layout/Page'
+
+type MetricTrend = 'up' | 'down'
+type MetricColor = 'ocean' | 'forest' | 'purple' | 'sunset'
+
+interface MetricCardConfig {
+  label: string
+  value: string
+  change: string
+  trend: MetricTrend
+  icon: LucideIcon
+  color: MetricColor
+}
 
 export default function Reports() {
   const [loading, setLoading] = useState(true)
@@ -44,13 +58,13 @@ export default function Reports() {
     return () => { mounted = false }
   }, [range])
 
-  const metrics = useMemo(() => ([
-    { label: 'Total Users', value: String(report?.users?.total_users ?? '—'), change: '+0%', trend: 'up', icon: '👥', color: 'ocean' },
-    { label: 'Active Listings', value: String(report?.marketplace?.total_items ?? '—'), change: '+0%', trend: 'up', icon: '🛍️', color: 'forest' },
+  const metrics = useMemo<MetricCardConfig[]>(() => ([
+    { label: 'Total Users', value: String(report?.users?.total_users ?? '—'), change: '+0%', trend: 'up', icon: Users, color: 'ocean' },
+    { label: 'Active Listings', value: String(report?.marketplace?.total_items ?? '—'), change: '+0%', trend: 'up', icon: Store, color: 'forest' },
     // Backend returns { total_requests, top_requested }. Use total_requests as the displayed count
-    { label: 'Documents Issued', value: String((report?.documents?.total_requests ?? report?.documents?.issued_total) ?? '—'), change: '+0%', trend: 'up', icon: '📄', color: 'purple' },
-    { label: 'Active Announcements', value: String(report?.announcements?.active_announcements ?? '—'), change: '+0%', trend: 'up', icon: '📢', color: 'sunset' },
-  ] as const), [report])
+    { label: 'Documents Issued', value: String((report?.documents?.total_requests ?? report?.documents?.issued_total) ?? '—'), change: '+0%', trend: 'up', icon: FileText, color: 'purple' },
+    { label: 'Active Announcements', value: String(report?.announcements?.active_announcements ?? '—'), change: '+0%', trend: 'up', icon: Megaphone, color: 'sunset' },
+  ]), [report])
   const headerStats = useMemo(() => (
     loading
       ? [
@@ -74,21 +88,6 @@ export default function Reports() {
         title="Reports & Analytics"
         description="Platform insights and performance metrics."
         stats={headerStats}
-        actions={(
-          <select
-            name="reportRange"
-            id="report-range"
-            aria-label="Select report date range"
-            value={range}
-            onChange={(e) => setRange(e.target.value)}
-            className="rounded-xl border border-neutral-200 bg-white/80 px-4 py-2 font-medium shadow-sm focus:border-ocean-500 focus:outline-none focus:ring-2 focus:ring-ocean-500/20"
-          >
-            <option value="last_7_days">Last 7 days</option>
-            <option value="last_30_days">Last 30 days</option>
-            <option value="last_90_days">Last 90 days</option>
-            <option value="this_year">This Year</option>
-          </select>
-        )}
       />
 
       {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>}
@@ -110,8 +109,13 @@ export default function Reports() {
             ) : (
               <>
                 <div className="flex items-start justify-between mb-4">
-                  <div className={`w-12 h-12 bg-${metric.color}-100 rounded-xl flex items-center justify-center text-2xl`}>{metric.icon}</div>
-                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${metric.trend === 'up' ? 'bg-forest-100 text-forest-700' : 'bg-red-100 text-red-700'}`}>{metric.trend === 'up' ? '↑' : '↓'} {metric.change}</span>
+                  <div className={`w-12 h-12 bg-${metric.color}-100 rounded-xl flex items-center justify-center`}>
+                    <metric.icon className={`h-6 w-6 text-${metric.color}-600`} />
+                  </div>
+                  <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${metric.trend === 'up' ? 'bg-forest-100 text-forest-700' : 'bg-red-100 text-red-700'}`}>
+                    {metric.trend === 'up' ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
+                    {metric.change}
+                  </span>
                 </div>
                 <p className="text-3xl font-bold text-neutral-900 mb-1">{metric.value}</p>
                 <p className="text-sm text-neutral-600">{metric.label}</p>
@@ -217,7 +221,7 @@ export default function Reports() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {documents.map((doc: any) => (
                 <div key={doc.name} className="bg-neutral-50 rounded-2xl p-4 hover:bg-ocean-50 transition-colors">
-                  <div className="flex items-start justify-between mb-3"><div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-2xl shadow-sm">📋</div><span className="text-2xl font-bold text-neutral-900">{doc.count}</span></div>
+                  <div className="flex items-start justify-between mb-3"><div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-ocean-600 shadow-sm"><ClipboardList className="h-6 w-6" /></div><span className="text-2xl font-bold text-neutral-900">{doc.count}</span></div>
                   <h3 className="font-semibold text-sm text-neutral-900 mb-2">{doc.name}</h3>
                 </div>
               ))}
