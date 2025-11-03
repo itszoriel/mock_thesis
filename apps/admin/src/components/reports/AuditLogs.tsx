@@ -54,8 +54,8 @@ export default function AuditLogs() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end gap-3">
+        <div className="sm:min-w-[160px]">
           <label className="block text-xs font-medium mb-1">Entity Type</label>
           {meta?.entity_types ? (
             <select className="border rounded px-3 py-2 text-sm" value={filters.entity_type||''} onChange={(e)=> setFilters(f=>({...f, entity_type: e.target.value||undefined}))}>
@@ -66,7 +66,7 @@ export default function AuditLogs() {
             <input className="border rounded px-3 py-2 text-sm" placeholder="e.g., document_request" value={filters.entity_type||''} onChange={(e)=> setFilters(f=>({...f, entity_type: e.target.value||undefined}))} />
           )}
         </div>
-        <div>
+        <div className="sm:min-w-[160px]">
           <label className="block text-xs font-medium mb-1">Actor Role</label>
           <select className="border rounded px-3 py-2 text-sm" value={filters.actor_role||''} onChange={(e)=> setFilters(f=>({...f, actor_role: e.target.value||undefined}))}>
             <option value="">Any</option>
@@ -75,7 +75,7 @@ export default function AuditLogs() {
             <option value="system">system</option>
           </select>
         </div>
-        <div>
+        <div className="sm:min-w-[180px]">
           <label className="block text-xs font-medium mb-1">Action</label>
           {meta?.actions ? (
             <select className="border rounded px-3 py-2 text-sm" value={filters.action||''} onChange={(e)=> setFilters(f=>({...f, action: e.target.value||undefined}))}>
@@ -86,15 +86,15 @@ export default function AuditLogs() {
             <input className="border rounded px-3 py-2 text-sm" placeholder="e.g., status_processing" value={filters.action||''} onChange={(e)=> setFilters(f=>({...f, action: e.target.value||undefined}))} />
           )}
         </div>
-        <div>
+        <div className="sm:min-w-[200px]">
           <label className="block text-xs font-medium mb-1">From</label>
           <input type="datetime-local" className="border rounded px-3 py-2 text-sm" value={filters.from||''} onChange={(e)=> setFilters(f=>({...f, from: e.target.value||undefined}))} />
         </div>
-        <div>
+        <div className="sm:min-w-[200px]">
           <label className="block text-xs font-medium mb-1">To</label>
           <input type="datetime-local" className="border rounded px-3 py-2 text-sm" value={filters.to||''} onChange={(e)=> setFilters(f=>({...f, to: e.target.value||undefined}))} />
         </div>
-        <div className="flex flex-wrap gap-2 sm:ml-auto sm:self-end sm:justify-end">
+        <div className="flex flex-wrap gap-2 sm:ml-auto sm:self-end sm:flex-none sm:justify-end">
           <button className="px-3 py-2 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-sm" onClick={()=> { setPage(1); load() }}>Apply</button>
           <button className="px-3 py-2 rounded-lg bg-ocean-600 hover:bg-ocean-700 text-white text-sm disabled:opacity-60" disabled={working==='pdf'} onClick={()=> exportIt('pdf')}>{working==='pdf'?'Exporting…':'Export PDF'}</button>
           <button className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm disabled:opacity-60" disabled={working==='xlsx'} onClick={()=> exportIt('xlsx')}>{working==='xlsx'?'Exporting…':'Export Excel'}</button>
