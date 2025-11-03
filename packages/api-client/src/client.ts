@@ -1,7 +1,53 @@
 import axios from 'axios'
 
-// Base URL from Vite env; fallback to localhost
-const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000'
+const resolveApiBaseUrl = (): string => {
+  const rawEnv = (import.meta as any)?.env?.VITE_API_URL
+  const envUrl = typeof rawEnv === 'string' ? rawEnv.trim() : ''
+
+  const fromWindow = () => {
+    if (typeof window === 'undefined') return ''
+    try {
+      const { protocol, hostname, port } = window.location
+      const origin = window.location.origin
+
+      if (/https?:\/\/.*-admin\./i.test(origin)) {
+        return origin.replace('-admin.', '-api.')
+      }
+      if (/https?:\/\/.*admin\./i.test(origin)) {
+        return origin.replace('admin.', 'api.')
+      }
+      if (/https?:\/\/.*-admin/i.test(origin)) {
+        return origin.replace('-admin', '-api')
+      }
+
+      const n = Number(port)
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+        if (!Number.isNaN(n) && n > 0) {
+          const fallbackPort = n === 3001 ? 5000 : n
+          return `${protocol}//${hostname}:${fallbackPort}`
+        }
+        return `${protocol}//${hostname}:5000`
+      }
+
+      return origin
+    } catch (error) {
+      console.warn('Failed to infer API base URL from window.location', error)
+      return ''
+    }
+  }
+
+  if (envUrl && !envUrl.includes('localhost')) {
+    return envUrl
+  }
+
+  const guessed = fromWindow()
+  if (guessed) return guessed
+
+  if (envUrl) return envUrl
+  return 'http://localhost:5000'
+}
+
+const API_BASE_URL = resolveApiBaseUrl()
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
