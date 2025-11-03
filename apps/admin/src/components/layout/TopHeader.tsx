@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { User, Globe } from 'lucide-react'
+import { resolvePublicSiteUrl } from '../../lib/config'
 import { useAdminStore } from '../../lib/store'
 import type { AdminState } from '../../lib/store'
 
@@ -30,20 +31,7 @@ export default function TopHeader({ sidebarCollapsed, onOpenMobile }: TopHeaderP
   }
   
   const API_BASE_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000'
-  // Resolve public site URL: prefer explicit env; otherwise, if running on a dev port (e.g., 3001), link to 3000
-  const PUBLIC_SITE_URL = (import.meta as any).env?.VITE_PUBLIC_SITE_URL || (() => {
-    try {
-      const { protocol, hostname, port } = window.location
-      const n = Number(port)
-      if (!Number.isNaN(n) && n > 0) {
-        const guess = n >= 3001 ? String(n - 1) : '3000'
-        return `${protocol}//${hostname}:${guess}`
-      }
-      return `${protocol}//${hostname}`
-    } catch {
-      return '/'
-    }
-  })()
+  const PUBLIC_SITE_URL = resolvePublicSiteUrl()
   const resolveImageUrl = (path?: string) => {
     if (!path) return undefined
     if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:') || path.startsWith('blob:')) return path
